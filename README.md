@@ -1,1 +1,2 @@
 # MUMT-621
+Coursework for MUMT 621 (Music Information Acquisition, Preservation, and Retrieval) at McGill, Winter 2020 ([course outline](http://www.music.mcgill.ca/~ich/classes/mumt621_20/mumt621outline.html))
