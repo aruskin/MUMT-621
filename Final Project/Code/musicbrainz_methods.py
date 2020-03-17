@@ -84,7 +84,7 @@ def add_mb_events_to_graph(mb_events, G, start_date=START_DATE, end_date=END_DAT
               edge_weight += 0.5
           G.add_node(artist_info['id'], name=artist_info['name'], node_type="Artist", bipartite=0)
           G.add_edge(artist_info['id'], event['id'], weight=edge_weight)
-          #ignore relationship to event for now
+          #ignore relationship to event (e.g., main act vs support) for now
       if 'place-relation-list' in event.keys():
         for place_rel in event['place-relation-list']:
           if place_rel['type'] == 'held at':
@@ -176,3 +176,17 @@ def plot_network(G, mbid, bipartite=False):
                 yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
                 )
   return fig
+
+# Return list of artists with the most overlapping venues as query artist
+# (Doesn't take into account how often they've played at these venues,
+# whether they've shared bill with query artist, etc.)
+# Assume bipartite graph of artist-venue data
+def get_basic_artist_rec(bi_G, query_id, n_recs=10):
+  venues, artists = nx.bipartite.sets(bi_G)
+  venue_degrees, artist_degrees = nx.bipartite.degrees(bi_G, artists)
+  artists_ranked = [(k, v) for k, v in sorted(artist_degrees, key=lambda item: item[1], reverse=True) \
+                    if k != query_id]
+  num_venues = len(venues)
+  outlist = artists_ranked[:n_recs]
+  outlist = [(bi_G.nodes[x]['name'], y/num_venues) for x, y in outlist]
+  return outlist
