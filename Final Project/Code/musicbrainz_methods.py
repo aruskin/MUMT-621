@@ -18,52 +18,60 @@ def try_parsing_mb_date(text):
 
 # Get all of the MusicBrainz events associated with a particular artist
 # Returns list of dictionaries
-def get_musicbrainz_artist_events(mbid, limit=100, offset=0):
+def get_musicbrainz_artist_events(mbid, verbose=True, limit=100, offset=0):
     events = []
     page = 1
-    print("fetching page number %d.." % page)
+    if verbose:
+      print("fetching page number %d.." % page)
     # Get all events linked to an area, an artist or a place.
     result = musicbrainzngs.browse_events(artist=mbid, includes=["event-rels", "place-rels", "artist-rels"], limit=limit, offset=offset)
     events_list = result['event-list']
     events += events_list
     if "event_count" in result:
       count = result['event-count']
-      print("")
+      if verbose:
+        print("")
     while len(events_list) >= limit:
       #do something
       offset += limit
       page += 1 
-      print("fetching page number %d.." % page)
+      if verbose:
+        print("fetching page number %d.." % page)
       result = musicbrainzngs.browse_events(artist=mbid, includes=["event-rels", "place-rels", "artist-rels"], limit=limit, offset=offset)
       events_list = result['event-list']
       events += events_list
-    print("")
-    print("\n%d events on  %d pages" % (len(events), page))
+    if verbose:
+      print("")
+      print("\n%d events on  %d pages" % (len(events), page))
     return events
 
 # Get all of the MusicBrainz events associated with a particular venue
 # Returns list of dictionaries
-def get_musicbrainz_venue_events(mbid, limit=100, offset=0):
+def get_musicbrainz_venue_events(mbid, verbose=True, limit=100, offset=0):
     events = []
     page = 1
-    print("fetching page number %d.." % page)
+    if verbose:
+      print("fetching page number %d.." % page)
     # Get all events linked to an area, an artist or a place.
     result = musicbrainzngs.browse_events(place=mbid, includes=["event-rels", "place-rels", "artist-rels"], limit=limit, offset=offset)
     events_list = result['event-list']
     events += events_list
     if "event_count" in result:
       count = result['event-count']
-      print("")
+      if verbose:
+        print("")
     while len(events_list) >= limit:
       #do something
       offset += limit
       page += 1 
-      print("fetching page number %d.." % page)
+      if verbose:
+        print("fetching page number %d.." % page)
       result = musicbrainzngs.browse_events(place=mbid, includes=["event-rels", "place-rels", "artist-rels"], limit=limit, offset=offset)
       events_list = result['event-list']
       events += events_list
-    print("")
-    print("\n%d events on  %d pages" % (len(events), page))
+    if verbose:
+      print("")
+      print("\n%d events on  %d pages" % (len(events), page))
     return events
 
 def add_mb_events_to_graph(mb_events, G, start_date=START_DATE, end_date=END_DATE):
@@ -108,13 +116,19 @@ def add_mb_events_to_bipartite_graph(mb_events, G, start_date=START_DATE, end_da
           G.add_edge(artist_info['id'], place_info['id'])
 
 def plot_network(G, mbid, bipartite=False):
+  seed_artist = G.nodes[mbid]['name']
+
+  # Some things should prob differ depending on type of graph, but still figuring that out
   if bipartite:
-    artist_nodes = {n for n, d in G.nodes(data=True) if d['node_type']=='Artist'}
-    pos = nx.layout.bipartite_layout(G, artist_nodes)
+    plot_title = "<br>Artist-venue graph for {}".format(seed_artist)  
   else:
-    pos = nx.layout.spring_layout(G)
+    plot_title = "<br>Artist-event-venue graph for {}".format(seed_artist)  
+  
+  pos = nx.layout.spring_layout(G)
+
   for node in G.nodes:
     G.nodes[node]['pos'] = list(pos[node])
+
   edge_x = []
   edge_y = []
   for edge in G.edges():
@@ -137,21 +151,34 @@ def plot_network(G, mbid, bipartite=False):
   node_y = []
   node_text = []
   node_types = []
+  bipartite_node_coloring = []
   for node in G.nodes():
       x, y = G.nodes[node]['pos']
       node_x.append(x)
       node_y.append(y)
-      # Every node should have a human readable name associated with it
+      # Every node should have some human readable info associated with it
       text = G.nodes[node]['name'] + "<br>Type: {}".format(G.nodes[node]['node_type'])
       if 'date' in G.nodes[node].keys():
           text = text + "<br>Date: {}".format(G.nodes[node]['date'])
-      node_text.append(text)
       if node == mbid:
         node_types.append('Seed')
-        seed_artist = G.nodes[node]['name']
+        bipartite_node_coloring.append(G.degree(node))
       else:
         node_types.append(G.nodes[node]['node_type'])
-  node_types, node_colors = np.unique(node_types, return_inverse=True)
+        if bipartite:
+          if G.nodes[node]['node_type'] == "Artist":
+            node_degree = G.degree(node)
+            bipartite_node_coloring.append(node_degree)
+            text = text + "<br>Shared venues: {}".format(node_degree)
+          else:
+            bipartite_node_coloring.append(0)
+      node_text.append(text)
+  
+  # Set node colors based on type (Seed, Artist, Venue, Event)
+  if bipartite:
+    node_colors = bipartite_node_coloring
+  else:
+    node_types, node_colors = np.unique(node_types, return_inverse=True)
 
   node_trace = go.Scatter(
       x=node_x, y=node_y, text=node_text,
@@ -165,9 +192,10 @@ def plot_network(G, mbid, bipartite=False):
           size=10
           ),
           line_width=2)
+
   fig = go.Figure(data=[edge_trace, node_trace],
              layout=go.Layout(
-                title='<br>Network graph for {}'.format(seed_artist),
+                title=plot_title,
                 titlefont_size=16,
                 showlegend=False,
                 hovermode='closest',
