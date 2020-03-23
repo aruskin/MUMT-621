@@ -1,5 +1,6 @@
 import musicbrainz_methods as mb
 import setlist_methods as sl
+import general_methods as gen
 import networkx as nx
 import argparse
 import configparser
@@ -35,10 +36,10 @@ def main():
       
 
   # display graph!
-  fig = mb.plot_network(G, test_mbid, bipartite=True)
+  fig = gen.plot_network(G, test_mbid, bipartite=True)
   fig.show()
 
-  print(mb.get_basic_artist_rec(G, test_mbid))
+  print(gen.get_basic_artist_rec_from_bigraph(G, test_mbid))
 
 if __name__ == "__main__":
   main()
