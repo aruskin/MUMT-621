@@ -1,6 +1,7 @@
 import networkx as nx
 import pandas as pd
 import plotly.graph_objects as go
+import musicbrainzngs
 
 # Return list of artists with the most overlapping venues as query artist
 # (Doesn't take into account how often they've played at these venues,
@@ -13,10 +14,20 @@ def get_basic_artist_rec_from_bigraph(bi_G, query_id, n_recs=10):
                     if k != query_id]
   num_venues = len(venues)
   outlist = artists_ranked[:n_recs]
-  outlist = [(bi_G.nodes[x]['name'], y) for x, y in outlist]
-  df = pd.DataFrame(outlist)
-  df = df.rename(columns={0:"Artist", 1:"Shared Venues"})
+  artists_and_info = []
+  for mbid, deg in outlist:
+    artist_info = {'name':'', 'area':'', 'shared_venues': deg}
+    mb_info = musicbrainzngs.get_artist_by_id(mbid)
+    mb_info = mb_info['artist']
+    artist_info['name'] = mb_info['name']
+    if 'area' in mb_info.keys():
+      artist_info['area'] = mb_info['area']['name']
+    artists_and_info += [artist_info]
+  #outlist = [(bi_G.nodes[x]['name'], y) for x, y in outlist]
+  df = pd.DataFrame(artists_and_info)
+  df = df.rename(columns={'name':'Artist', 'shared_venues':'Shared Venues', 'area':'Origin'})
   return df
+
 
 def plot_network(G, mbid, bipartite=False):
   seed_artist = G.nodes[mbid]['name']
