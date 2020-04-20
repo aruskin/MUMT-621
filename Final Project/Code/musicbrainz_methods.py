@@ -101,18 +101,23 @@ def add_mb_events_to_graph(mb_events, G, start_date=START_DATE, end_date=END_DAT
 
 def add_mb_events_to_bipartite_graph(mb_events, G, start_date=START_DATE, end_date=END_DATE):
   for event in mb_events:
-    event_date = try_parsing_mb_date(event['life-span']['begin'])
-    if (event_date >= start_date) & (event_date <= end_date):
-      if 'place-relation-list' in event.keys():
-        for place_rel in event['place-relation-list']:
-          if place_rel['type'] == 'held at':
-            place_info = place_rel['place']
-            G.add_node(place_info['id'], name=place_info['name'], node_type="Venue")
-      if 'artist-relation-list' in event.keys():
-        for artist in event['artist-relation-list']:
-          artist_info = artist['artist']
-          G.add_node(artist_info['id'], name=artist_info['name'], node_type="Artist")
-          G.add_edge(artist_info['id'], place_info['id'])
+    # how to handle events with no dates? just discard them
+    if 'life-span' in event.keys():
+      event_date = try_parsing_mb_date(event['life-span']['begin'])
+      if (event_date >= start_date) & (event_date <= end_date):
+        if 'place-relation-list' in event.keys():
+          for place_rel in event['place-relation-list']:
+            if place_rel['type'] == 'held at':
+              place_info = place_rel['place']
+              G.add_node(place_info['id'], name=place_info['name'], node_type="Venue")
+              # Note: only adding artist and artist-venue edge when event has venue info
+              # associated (this means missing out on artists for events that don't have
+              # venue info...)
+              if 'artist-relation-list' in event.keys():
+                for artist in event['artist-relation-list']:
+                  artist_info = artist['artist']
+                  G.add_node(artist_info['id'], name=artist_info['name'], node_type="Artist")
+                  G.add_edge(artist_info['id'], place_info['id'])
 
 def map_mb_event_to_standard(event):
   events = []
@@ -123,7 +128,8 @@ def map_mb_event_to_standard(event):
     new_event['artist_mbid'] = artist_info['id']
     if 'type' in artist.keys():
       new_event['artist_event_relationship'] = artist['type']
-    new_event['time'] = try_parsing_mb_date(event['life-span']['begin'])
+    if 'life-span' in event.keys():
+      new_event['time'] = try_parsing_mb_date(event['life-span']['begin'])
     if 'place-relation-list' in event.keys():
         for place_rel in event['place-relation-list']:
           if place_rel['type'] == 'held at':

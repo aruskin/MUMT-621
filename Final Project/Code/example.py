@@ -32,7 +32,7 @@ def main():
             if place_info['id'] not in venue_event_dict.keys():
               new_events = mb.get_musicbrainz_venue_events(place_info['id'], verbose=True)
               venue_event_dict[place_info['id']] = new_events
-            mb.add_mb_events_to_bipartite_graph(new_events, G)
+              mb.add_mb_events_to_bipartite_graph(new_events, G)
 
   # display graph!
   fig = gen.plot_network(G, test_mbid, bipartite=True)
