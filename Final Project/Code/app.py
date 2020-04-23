@@ -79,7 +79,10 @@ app.layout = html.Div([
     html.Label("Enter artist name:"),
     dcc.Input(id='artist-input', type='text', placeholder='e.g., Korpiklaani', value=""),
     html.Button(id='mbid-submit-button', children='Submit'),
-    dcc.Dropdown(id='artist-dropdown', placeholder='Select artist'),
+    # intialize artist dropdown as hidden display
+    html.Div(id='artist-dropdown-container',
+        children=[dcc.Dropdown(id='artist-dropdown', placeholder='Select artist')], 
+        style={'display': 'none'}),
      # Hidden divs inside the app that store intermediate values
     html.Div(id='mbid-entry-store', style={'display': 'none'}), 
     html.Div(id='mbid-valid-store', style={'display': 'none'}),
@@ -122,7 +125,19 @@ def update_artist_dropdown(n_clicks, artist_input_value):
                         artist_name = artist['name']
                     options += [{'label': artist_name, 'value': artist['id']}]
                 message = "Found {} artists".format(num_artists)
-                return message, options    
+                return message, options
+
+# Only show artist dropdown list if/when candidate arists found
+@app.callback(Output('artist-dropdown-container', 'style'),
+    [Input('artist-dropdown', 'options')])
+def toggle_artist_dropdown(artist_options):
+    if artist_options is None:
+        raise PreventUpdate
+    else:
+        if len(artist_options) == 0:
+            return {'display': 'none'}
+        else:
+            return {'display': 'block'}
 
 # When user selects option from dropdown list, update hidden elements for storing
 # query MBID and whether it's valid (the validity thing may no longer be necessary...)
