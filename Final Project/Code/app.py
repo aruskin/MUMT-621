@@ -1,6 +1,7 @@
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
+import dash_bootstrap_components as dbc
 import pandas as pd
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
@@ -61,7 +62,7 @@ def get_artist_recs(test_mbid):
 
 # Copied this from Dash tutorial--will have to check if there's a more
 # aesthetically pleasing stylesheet to use for this app
-external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
+external_stylesheets = [dbc.themes.SKETCHY]
 
 #########
 
@@ -69,13 +70,14 @@ app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
 server = app.server
 
-app.layout = html.Div([
+app.layout = dbc.Container([
     html.H1(
         children='Get Artist Recommendations by Tour History',
         style={
             'textAlign': 'center'
         }
     ),
+    html.Hr(),
     html.Label("Enter artist name:"),
     dcc.Input(id='artist-input', type='text', placeholder='e.g., Korpiklaani', value=""),
     html.Button(id='mbid-submit-button', children='Submit'),
@@ -87,8 +89,12 @@ app.layout = html.Div([
     html.Div(id='mbid-entry-store', style={'display': 'none'}), 
     html.Div(id='mbid-valid-store', style={'display': 'none'}),
     html.Div(id='mbid-message'),
-    html.Button(id='get-recs-button', children='Find Related Artists'),
-    html.Div(id='get-recs-output'),
+    html.Br(),
+    html.Div(id='get-recs-container',
+        children=[dbc.Button(id='get-recs-button', children='Find Related Artists'),
+        dbc.Spinner(html.Div(id='get-recs-spinner'))],
+        style={'display': 'none'}),
+    #html.Div(id='get-recs-output'),
     html.Table(id='recs-table')
 ])
 
@@ -142,18 +148,20 @@ def toggle_artist_dropdown(artist_options):
 # When user selects option from dropdown list, update hidden elements for storing
 # query MBID and whether it's valid (the validity thing may no longer be necessary...)
 @app.callback(
-    [Output('mbid-entry-store', 'children'), Output('mbid-valid-store', 'children')],
+    [Output('mbid-entry-store', 'children'), Output('mbid-valid-store', 'children'),
+    Output('get-recs-container', 'style')],
     [Input('artist-dropdown', 'value')])
 def update_mbid_outputs(artist_dropdown_selection):
     if artist_dropdown_selection is None:
         raise PreventUpdate
     else:
-        return artist_dropdown_selection, True
+        return artist_dropdown_selection, True, {'display': 'block'}
 
 # When user hits "Find Related Artists", generate list of recommendations based on
 # query artist (need to have a valid MBID stored) and display in table
 @app.callback(
-    [Output('get-recs-output', 'children'), Output('recs-table', 'children')],
+    [Output('get-recs-spinner', 'children'), #Output('get-recs-output', 'children'), 
+    Output('recs-table', 'children')],
     [Input('mbid-submit-button', 'n_clicks'), Input('get-recs-button', 'n_clicks')],
     [State('mbid-valid-store', 'children'), State('mbid-entry-store', 'children')]
     )
