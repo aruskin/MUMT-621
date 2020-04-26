@@ -137,9 +137,10 @@ def map_mb_event_to_standard(event):
             new_event['venue_mb_id'] = place_info['id']
             new_event['venue_mb_name'] = place_info['name']
             if 'coordinates' in place_info.keys():
-              new_event['venue_latitude'] = place_info['coordinates']['latitude']
-              new_event['venue_longitude'] = place_info['coordinates']['longitude']
-    new_event['event_type'] = event['type']
+              new_event['venue_latitude'] = float(place_info['coordinates']['latitude'])
+              new_event['venue_longitude'] = float(place_info['coordinates']['longitude'])
+    if 'type' in event.keys():
+      new_event['event_type'] = event['type']
     new_event['event_mb_name'] = event['name']
     new_event['event_mb_id'] = event['id']
     events.append(new_event)
