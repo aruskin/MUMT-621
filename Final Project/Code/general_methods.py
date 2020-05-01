@@ -5,6 +5,7 @@ import musicbrainzngs
 import datetime
 import requests
 import time
+import json
 
 def try_parsing_mb_date(text):
     for fmt in ('%Y-%m-%d', '%Y-%m', '%Y'):
@@ -56,14 +57,25 @@ class Artist:
 ###################
 
 class Venue:
-  def __init__(self):
-    self.id = dict(mbid=None, slid=None)
-    self.name = dict(mbname=None, slname=None)
-    self.city = dict(name=None, coords=(None, None))
-    self.coords = (None, None)
+  def __init__(self, venue_dict=None):
+    if venue_dict is None:
+      self.id = dict(mbid=None, slid=None)
+      self.name = dict(mbname=None, slname=None)
+      self.city = dict(name=None, coords=(None, None))
+      self.coords = (None, None)
+    else:
+      self.id = venue_dict['id']
+      self.name = venue_dict['name']
+      self.city = venue_dict['city']
+      self.coords = venue_dict['coords']
 
-  def __str__(self):
-    return "Venue({})".format(str(self.to_dict()))
+  def __repr__(self):
+    return "Venue({})".format(self.to_dict())
+
+  def __eq__(self, other):
+    if isinstance(other, Venue):
+      return self.to_dict() == other.to_dict()
+    return False
 
   def load_from_mb_event(self, mb_event):
     if 'place-relation-list' in mb_event.keys():
@@ -84,6 +96,12 @@ class Venue:
     self.city['name'] = sl_event['venue']['city']['name']
     self.city['coords'] = (sl_event['venue']['city']['coords']['lat'],\
       sl_event['venue']['city']['coords']['long'])
+
+  def from_dict(self, venue_dict):
+    self.id = venue_dict['id']
+    self.name = venue_dict['name']
+    self.city = venue_dict['city']
+    self.coords = venue_dict['coords']
 
   def to_dict(self):
     new_dict = dict(id=self.id, name=self.name, city=self.city, coords=self.coords)
@@ -214,6 +232,36 @@ class Event:
           G.add_edge(artist_node_id, venue_node_id)
 
 #####################
+# For now assume one-to-one mapping (prob a faulty assumption...)
+class VenueMapper:
+  def __init__(self):
+    self.venue_mapping = {}
+
+  #takes form id: dictionary rep of Venue object
+  def load_json(self, filename):
+    with open(filename, 'r') as f:
+      loaded_dict = json.load(f)
+    for key, value in loaded_dict.items():
+      self.venue_mapping[key] = Venue(value)
+
+  def dump_json(self, filename):
+    venue_dump = {}
+    for key, value in self.venue_mapping.items():
+      venue_dump[key] = value.to_dict()
+    if bool(venue_dump):
+      with open(filename, 'w') as f:
+        json.dump(venue_dump, filename)
+
+  def add_venue(self, map_id, venue):
+      self.venue_mapping[map_id] = venue
+
+  def has_id(self, check_id):
+    return(check_id in self.venue_mapping)
+
+  def get_venue(self, query_id):
+    return self.venue_mapping[query_id]
+
+#####################
 
 class SetlistAPIError(Exception):
     pass
@@ -290,14 +338,13 @@ class MusicBrainzPuller:
 
 #####################
 
-def merge_event_lists(events1, events2):
+def merge_event_lists(events1, events2, venue_mapper):
   if len(events1) == 0:
-    return(events2, {})
+    return events2
   elif len(events2) == 0:
-    return(events1, {})
+    return events1
   else:
     filtered_events1 = []
-    mapped_venues = {}
     merged_count = 0
     for ev1 in events1:
       found_dupe = False
@@ -306,43 +353,44 @@ def merge_event_lists(events1, events2):
           found_dupe = True
           ev2.merge_with(ev1)
           merged_count += 1
-          mapped_venues[ev2.venue.id['mbid']] = ev2.venue
-          mapped_venues[ev2.venue.id['slid']] = ev2.venue
+          venue_mapper.add_venue(ev2.venue.id['mbid'], ev2.venue)
+          venue_mapper.add_venue(ev2.venue.id['slid'], ev2.venue)
       if not found_dupe:
         filtered_events1.append(ev1)
     print("Merged {} events".format(merged_count))
-    return(filtered_events1 + events2, mapped_venues)
+    return filtered_events1 + events2
 
-def get_mb_and_sl_events(mbid, mb_event_puller, sl_event_puller, start_date, end_date, seed_type="artist", slid=None, sl_page_limit=5):
-  try:
-    valid_mb_events = []
-    valid_sl_events = []
+def get_mb_and_sl_events(mbid, mb_event_puller, sl_event_puller, venue_mapper, start_date, end_date, seed_type="artist", slid=None, sl_page_limit=5):
+  valid_mb_events = []
+  valid_sl_events = []
 
-    if seed_type=='artist':
-      sl_seed_id = mbid
-    else:
-      sl_seed_id = slid
-    if mbid:
-      mb_events = mb_event_puller.pull_events(mbid=mbid, seed_type=seed_type)
-      for mb_event in mb_events:
-        event = Event()
-        event.load_from_mb_event(mb_event)
-        if event.valid_date(start_date, end_date):
-          if (len(event.artists) > 0) and not event.venue.is_empty():
-            valid_mb_events.append(event)
+  if seed_type=='artist':
+    sl_seed_id = mbid
+  else:
+    sl_seed_id = slid
+  if mbid:
+    mb_events = mb_event_puller.pull_events(mbid=mbid, seed_type=seed_type)
+    for mb_event in mb_events:
+      event = Event()
+      event.load_from_mb_event(mb_event)
+      if event.valid_date(start_date, end_date):
+        if (len(event.artists) > 0) and not event.venue.is_empty():
+          valid_mb_events.append(event)
 
-    if sl_seed_id: 
+  if sl_seed_id: 
+    try:
       sl_events = sl_event_puller.pull_events(seed_id=sl_seed_id, seed_type=seed_type, limit=sl_page_limit)
       for sl_event in sl_events:
         event = Event()
         event.load_from_sl_event(sl_event)
         if event.valid_date(start_date, end_date):
           valid_sl_events.append(event)
-    print("{} MB events, {} SL events".format(len(valid_mb_events), len(valid_sl_events)))
-    valid_events, mapped_venues = merge_event_lists(valid_mb_events, valid_sl_events)
-    return(valid_events, mapped_venues)
-  except SetlistAPIError:
-    print("Issue pulling Setlist events")
+    except SetlistAPIError:
+      print("Issue pulling Setlist events - will use MusicBrainz only")
+      pass
+  print("{} MB events, {} SL events".format(len(valid_mb_events), len(valid_sl_events)))
+  valid_events = merge_event_lists(valid_mb_events, valid_sl_events, venue_mapper)
+  return valid_events
 
 def get_mb_artist_area(mbid):
   mb_info = musicbrainzngs.get_artist_by_id(mbid)
