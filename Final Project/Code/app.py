@@ -2,6 +2,7 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_bootstrap_components as dbc
+import dash_table
 import pandas as pd
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
@@ -14,13 +15,20 @@ from dateutil.relativedelta import relativedelta
 import json
 import plotly.graph_objects as go
 import configparser
+import os
 
 musicbrainzngs.set_useragent(app="testing MusicBrainz API", version="0")
 
 # Global variables and objects
-config = configparser.ConfigParser()
-config.read('.config')
-SETLIST_API_KEY = config['API Keys']['SETLIST_API_KEY']
+is_prod = os.environ.get('IS_HEROKU', None) # running production or development?
+
+if is_prod: #use Heroku environment vars
+    SETLIST_API_KEY = os.environment.get('SETLIST_API_KEY') 
+else: #running locally, read in vars from config file
+    config = configparser.ConfigParser()
+    config.read('.config')
+    SETLIST_API_KEY = config['API Keys']['SETLIST_API_KEY']
+
 START_DATE = datetime.date(2015, 1, 1)
 END_DATE = datetime.date.today()
 
@@ -28,6 +36,9 @@ MB_EVENT_PULLER = gen.MusicBrainzPuller(app="MUMT-621 Project testing", version=
 SL_EVENT_PULLER = gen.SetlistPuller(api_key=SETLIST_API_KEY)
 VENUE_MAPPER = gen.VenueMapper()
 VENUE_MAPPER.load_json('venue_mapping.json')
+
+SL_ARTIST_PAGE_LIMIT = 1
+SL_VENUE_PAGE_LIMIT = 1
 
 # Copied from Dash tutorial - convert pandas dataframe to HTML table
 def generate_table(dataframe, max_rows=10):
@@ -40,13 +51,7 @@ def generate_table(dataframe, max_rows=10):
                             html.Tr([html.Td(dataframe.iloc[i][col]) for col in dataframe.columns]) \
                             for i in range(min(len(dataframe), max_rows))
                         ])
-        ]#)
-
-def get_query_artist_events(query_mbid):
-    valid_events, message = gen.get_mb_and_sl_events(query_mbid, \
-        MB_EVENT_PULLER, SL_EVENT_PULLER, VENUE_MAPPER,\
-        START_DATE, END_DATE, sl_page_limit=1)
-    return valid_events, message
+        ]
 
 # Create geographical plot of query artist events with lat/long
 # Returns plot object, number of events plotted, text summarizing events not plotted
@@ -117,7 +122,8 @@ def get_events_list(query_artist_events):
         if new_key not in venue_event_dict:
           new_events, message = gen.get_mb_and_sl_events(venue_mbid, \
             MB_EVENT_PULLER, SL_EVENT_PULLER, VENUE_MAPPER, \
-            START_DATE, END_DATE, seed_type="venue", slid=venue_slid, sl_page_limit=1)
+            START_DATE, END_DATE, seed_type="venue", slid=venue_slid, \
+            sl_page_limit=SL_VENUE_PAGE_LIMIT)
           venue_event_dict[new_key] = new_events
           flattened_events = [x.flatten() for x in new_events]
           all_events += flattened_events
@@ -165,7 +171,10 @@ user_inputs = [
 summary_cards = dbc.Row(
     [
         dbc.Col(dbc.Card([dbc.CardHeader("Summary"), dbc.CardBody(id='query-events-text')])),
-        dbc.Col(dbc.Card([dbc.CardHeader("Mappability"), dbc.CardBody(id='query-map-text')]))
+        dbc.Col(dbc.Card([dbc.CardHeader("Mappability"), dbc.CardBody(id='query-map-text')])),
+        dbc.Col(dbc.Card([dbc.CardHeader("More info about recommendations"), 
+                dbc.CardBody(id='rec-select-text'), 
+                dbc.CardLink(id='rec-select-mb-link')]))
     ]
 )
 
@@ -181,7 +190,12 @@ app.layout = dbc.Container([
         # 1st column: User input stuff & recs output table
         dbc.Col([
             dbc.Row(dbc.Col(user_inputs)),
-            dbc.Row([dbc.Table(id='recs-table', hover=True)])
+            dbc.Row(
+                #[dbc.Table(id='recs-table', hover=True)]
+                [dbc.Col(dash_table.DataTable(id='recs-table'), # row_selectable='single'),
+                    align='center')]
+                    #css=[{'selector': '.row', 'rule': 'margin: 5'}]
+                )
         ], width=4),
         # 2nd column: summary of info about query artist & map
         dbc.Col([
@@ -268,9 +282,10 @@ def update_summary_text(mbid_submit, recs_submit, mbid_valid, mbid_entry):
         if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks":
             return None, None, None, None, default_map_figure
         else:
-            events, message = get_query_artist_events(mbid_entry)
+            events, message = gen.get_mb_and_sl_events(mbid_entry, \
+                MB_EVENT_PULLER, SL_EVENT_PULLER, VENUE_MAPPER,\
+                START_DATE, END_DATE, sl_page_limit=SL_ARTIST_PAGE_LIMIT)
             event_count = len(events)
-            #venue_set = set()
             venue_list = []
             venue_count = 0
 
@@ -278,17 +293,7 @@ def update_summary_text(mbid_submit, recs_submit, mbid_valid, mbid_entry):
                 if event.venue not in venue_list:
                     venue_list.append(event.venue)
                     venue_count += 1
-                #if 'place-relation-list' in event.keys():
-                #    for place_rel in event['place-relation-list']:
-                #        if place_rel['type'] == 'held at':
-                #            place_info = place_rel['place']
-                #            venue_set.add(place_info['id'])
-            #venue_count = len(venue_set)
             summary_text = message + " {} events were found at {} unique venues.".format(event_count, venue_count)
-            #summary_text = "On MusicBrainz: {events} events found at {venues} \
-            #    unique venues between {beg_date} and {end_date}".format(\
-            #        events=event_count, venues=venue_count, \
-            #        beg_date=START_DATE.date(), end_date=END_DATE.date())
             serializable_events = [event.to_dict() for event in events]
             events_json = json.dumps(serializable_events, default=str)
             map_plot, mappable_events, mappability_text = generate_artist_events_map(events, mbid_entry)
@@ -302,7 +307,8 @@ def update_summary_text(mbid_submit, recs_submit, mbid_valid, mbid_entry):
 # When user hits "Find Related Artists", generate list of recommendations based on
 # query artist (need to have a valid MBID stored) and display in table
 @app.callback(
-    [Output('get-recs-spinner2', 'children'), Output('recs-table', 'children'), 
+    [Output('get-recs-spinner2', 'children'), #Output('recs-table', 'children'), 
+    Output('recs-table', 'data'), Output('recs-table', 'columns'),
     Output('recs-state-store', 'children'), Output('venue-event-storage', 'data')],
     [Input('query-venues-store', 'data'), Input('mbid-entry-store', 'children'), Input('mbid-submit-button', 'n_clicks')],
     [State('recs-state-store', 'children')]
@@ -314,7 +320,7 @@ def update_recs_output(events_json, mbid_entry, submit_clicks, recs_state_store)
         ctx = dash.callback_context
         if ctx.triggered:
             if (ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks") or ((ctx.triggered[0]['prop_id'] == "mbid-entry-store.children") and (mbid_entry != recs_state_store)):
-                return "Clearing recs...", None, None, None
+                return "Clearing recs...", None, None, None, None
             elif (ctx.triggered[0]['prop_id'] == "query-venues-store.data"):
                 query_events_list = json.loads(events_json)
 
@@ -322,10 +328,12 @@ def update_recs_output(events_json, mbid_entry, submit_clicks, recs_state_store)
                 events_df = pd.DataFrame(events_list)
                 recs = gen.get_basic_artist_rec_from_df(events_df, mbid_entry, with_geo=False)
                 if recs is None:
-                    return "No events found for {} between {} and {}".format(mbid_entry, START_DATE, END_DATE), None, mbid_entry, events_list
+                    return "No events found for {} between {} and {}".format(mbid_entry, START_DATE, END_DATE), None, None, mbid_entry, events_list
                 else:
-                    recs_table = generate_table(recs, len(recs))
-                    return "Got recs for {}".format(mbid_entry), recs_table, mbid_entry, events_list
+                    #recs_table = generate_table(recs, len(recs))
+                    recs_table = recs.to_dict('records')
+                    recs_columns = [{"name": i, "id": i} for i in recs.columns if i != 'id']
+                    return "Got recs for {}".format(mbid_entry), recs_table, recs_columns, mbid_entry, events_list
             elif (ctx.triggered[0]['prop_id'] == "mbid-entry-store.children") and (mbid_entry == recs_state_store):
                 raise PreventUpdate
 
@@ -355,6 +363,35 @@ def update_venue_events_on_hover(mbid_submit, hover_data, events_list):
                 heading_text = 'Who else played {venue} between {start_date} and {end_date}?'.format(\
                     venue=venue_name, start_date=START_DATE, end_date=END_DATE)
                 return events_table, heading_text
+
+@app.callback([Output('rec-select-text', 'children'), Output('rec-select-mb-link', 'children'), Output('rec-select-mb-link', 'href')],
+    [Input('recs-table', 'active_cell')],
+    [State('venue-event-storage', 'data'), State('recs-table', 'data')])
+def display_recommended_artist_info(active_cell, events_list, recs_table_data):
+    if active_cell is None:
+        raise PreventUpdate
+    else:
+        active_row_id = active_cell['row_id']
+        active_col_id = active_cell['column_id']
+        selected_record = [x for x in recs_table_data if x['id']==active_row_id][0]
+        artist = selected_record['Artist']
+        artist_mbid = selected_record['id']
+        shared_venues = selected_record['Shared Venues']
+        if active_col_id == 'Artist':
+            message = 'Find out more about {} !'.format(artist)
+            mb_link_text = 'MusicBrainz artist page'
+            mb_artist_page = 'https://musicbrainz.org/artist/' + artist_mbid
+            return message, mb_link_text, mb_artist_page
+        elif active_col_id == 'Shared Venues':
+            relevant_events = [event for event in events_list if event['artist_mbid']==artist_mbid]
+            event_text = ["{venue} ({date})".format(date=str(x['time']), \
+                venue=gen.not_none(x['venue_mbname'], x['venue_slname'])) for x in relevant_events]
+            message = '{} and the query artist have recently played at {} of the same venues.'.format(artist, shared_venues)
+            message = message + " {}'s events: ".format(artist)
+            message = message + "; ".join(event_text)
+            
+            return message, None, None
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)

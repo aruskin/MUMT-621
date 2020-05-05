@@ -448,11 +448,11 @@ def get_basic_artist_rec_from_df(df, query_id, with_geo=True, n_recs=10):
   grouped_df = df.groupby(['artist_mbid', 'artist_name']).agg({'venue_id':'nunique'})
   top_artists = grouped_df.sort_values(by=['venue_id'], ascending=False).head(n=n_recs)
   top_artists = top_artists.reset_index()
-  top_artists = top_artists.rename(columns={'artist_name':'Artist', 'venue_id':'Shared Venues'})
+  top_artists = top_artists.rename(columns={'artist_mbid':'id', 'artist_name':'Artist', 'venue_id':'Shared Venues'})
   if with_geo:
     top_artists['Origin'] = top_artists['artist_mbid'].apply(get_mb_artist_area)
-    cols_to_return = ['Artist', 'Origin', 'Shared Venues']
+    cols_to_return = ['id', 'Artist', 'Origin', 'Shared Venues']
   else:
-    cols_to_return = ['Artist', 'Shared Venues']
+    cols_to_return = ['id', 'Artist', 'Shared Venues']
   top_artists = top_artists[cols_to_return]
   return top_artists
