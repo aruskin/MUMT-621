@@ -23,7 +23,7 @@ musicbrainzngs.set_useragent(app="testing MusicBrainz API", version="0")
 is_prod = os.environ.get('IS_HEROKU', None) # running production or development?
 
 if is_prod: #use Heroku environment vars
-    SETLIST_API_KEY = os.environment.get('SETLIST_API_KEY') 
+    SETLIST_API_KEY = os.environ.get('SETLIST_API_KEY') 
 else: #running locally, read in vars from config file
     config = configparser.ConfigParser()
     config.read('.config')
