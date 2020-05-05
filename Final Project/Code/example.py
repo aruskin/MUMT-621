@@ -1,5 +1,4 @@
 import musicbrainzngs
-import musicbrainz_methods as mb
 import general_methods as gen
 import networkx as nx
 from dateutil.relativedelta import relativedelta
@@ -7,6 +6,9 @@ import argparse
 import pandas as pd
 import configparser
 import json
+
+START_DATE = datetime.date(2015, 1, 1)
+END_DATE = datetime.date.today()
 
 def main():
   config = configparser.ConfigParser()
@@ -24,7 +26,7 @@ def main():
   venue_mapper.load_json('venue_mapping.json')
 
   valid_events, message = gen.get_mb_and_sl_events(test_mbid, mb_event_puller, sl_event_puller, venue_mapper,\
-   mb.START_DATE, mb.END_DATE)
+   START_DATE, END_DATE)
 
   print(message)
 
@@ -42,7 +44,7 @@ def main():
     new_key = (venue_mbid, venue_slid)
     if new_key not in venue_event_dict:
       new_events, message = gen.get_mb_and_sl_events(venue_mbid, mb_event_puller, sl_event_puller, venue_mapper, \
-          mb.START_DATE, mb.END_DATE, seed_type="venue", slid=venue_slid, sl_page_limit=1)
+          START_DATE, END_DATE, seed_type="venue", slid=venue_slid, sl_page_limit=1)
       venue_event_dict[new_key] = new_events
       flattened_events = [x.flatten() for x in new_events]
       all_events += flattened_events
