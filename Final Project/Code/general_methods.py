@@ -40,6 +40,10 @@ class Artist:
     self.mbid = sl_event['artist']['mbid']
     self.name = sl_event['artist']['name']
 
+  def from_dict(self, artist_dict):
+    self.mbid = artist_dict['mbid']
+    self.name = artist_dict['name']
+
   def to_dict(self):
     return dict(mbid=self.mbid, name=self.name)
 
@@ -172,6 +176,16 @@ class Event:
     self.artists.append(new_artist)
     self.venue.load_from_sl_event(sl_event)
 
+  def from_dict(self, event_dict):
+    self.id = event_dict['id']
+    self.name = event_dict['name']
+    self.time = event_dict['time']
+    self.type = event_dict['type']
+    for artist in event_dict['artists']:
+      new_artist = Artist()
+      self.artists.append(new_artist.from_dict(artist))
+    self.venue.from_dict(event_dict['venue'])
+
   def set_venue(self, new_venue):
     if isinstance(new_venue, Venue):
       self.venue = new_venue
@@ -246,11 +260,11 @@ class VenueMapper:
 
   def dump_json(self, filename):
     venue_dump = {}
-    for key, value in self.venue_mapping.items():
-      venue_dump[key] = value.to_dict()
+    for venue_id, venue in self.venue_mapping.items():
+      venue_dump[venue_id] = venue.to_dict()
     if bool(venue_dump):
       with open(filename, 'w') as f:
-        json.dump(venue_dump, filename)
+        json.dump(venue_dump, f)
 
   def add_venue(self, map_id, venue):
       self.venue_mapping[map_id] = venue
@@ -363,7 +377,7 @@ def merge_event_lists(events1, events2, venue_mapper):
 def get_mb_and_sl_events(mbid, mb_event_puller, sl_event_puller, venue_mapper, start_date, end_date, seed_type="artist", slid=None, sl_page_limit=5):
   valid_mb_events = []
   valid_sl_events = []
-
+  message = ""
   if seed_type=='artist':
     sl_seed_id = mbid
   else:
@@ -376,6 +390,7 @@ def get_mb_and_sl_events(mbid, mb_event_puller, sl_event_puller, venue_mapper, s
       if event.valid_date(start_date, end_date):
         if (len(event.artists) > 0) and not event.venue.is_empty():
           valid_mb_events.append(event)
+    message = "Retrieved {} MusicBrainz events between {} and {}. ".format(len(valid_mb_events), start_date.date(), end_date.date())
 
   if sl_seed_id: 
     try:
@@ -385,12 +400,16 @@ def get_mb_and_sl_events(mbid, mb_event_puller, sl_event_puller, venue_mapper, s
         event.load_from_sl_event(sl_event)
         if event.valid_date(start_date, end_date):
           valid_sl_events.append(event)
+      message = message + "Retrieved {} Setlist events between {} and {},".format(len(valid_sl_events), start_date.date(), end_date.date())
+      message = message + " limited to the {} most recent. ".format(sl_page_limit*20)
     except SetlistAPIError:
+      message = message+"Setlist daily query limit reached, so no events pulled. "
       print("Issue pulling Setlist events - will use MusicBrainz only")
       pass
-  print("{} MB events, {} SL events".format(len(valid_mb_events), len(valid_sl_events)))
+  print("Retrieved {} MB events, {} SL events".format(len(valid_mb_events), len(valid_sl_events)))
   valid_events = merge_event_lists(valid_mb_events, valid_sl_events, venue_mapper)
-  return valid_events
+  message = message + "{} unique events. ".format(len(valid_events))
+  return valid_events, message
 
 def get_mb_artist_area(mbid):
   mb_info = musicbrainzngs.get_artist_by_id(mbid)

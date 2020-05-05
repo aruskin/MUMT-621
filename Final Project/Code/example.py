@@ -21,11 +21,12 @@ def main():
   mb_event_puller = gen.MusicBrainzPuller(app="MUMT-621 Project testing", version="0")
   sl_event_puller = gen.SetlistPuller(api_key=SETLIST_API_KEY)
   venue_mapper = gen.VenueMapper()
+  venue_mapper.load_json('venue_mapping_by_coords.json')
 
-  valid_events = gen.get_mb_and_sl_events(test_mbid, mb_event_puller, sl_event_puller, venue_mapper,\
+  valid_events, message = gen.get_mb_and_sl_events(test_mbid, mb_event_puller, sl_event_puller, venue_mapper,\
    mb.START_DATE, mb.END_DATE)
 
-  print("{} valid events".format(len(valid_events)))
+  print(message)
 
   venue_event_dict = {}
   all_events = []
@@ -40,7 +41,7 @@ def main():
     new_events = []
     new_key = (venue_mbid, venue_slid)
     if new_key not in venue_event_dict:
-      new_events = gen.get_mb_and_sl_events(venue_mbid, mb_event_puller, sl_event_puller, venue_mapper, \
+      new_events, message = gen.get_mb_and_sl_events(venue_mbid, mb_event_puller, sl_event_puller, venue_mapper, \
           mb.START_DATE, mb.END_DATE, seed_type="venue", slid=venue_slid, sl_page_limit=1)
       venue_event_dict[new_key] = new_events
       flattened_events = [x.flatten() for x in new_events]
