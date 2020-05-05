@@ -7,18 +7,27 @@ from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 
 import musicbrainzngs
-import musicbrainz_methods as mb
 import general_methods as gen
 import networkx as nx
 import datetime
 from dateutil.relativedelta import relativedelta
 import json
 import plotly.graph_objects as go
+import configparser
 
 musicbrainzngs.set_useragent(app="testing MusicBrainz API", version="0")
 
-START_DATE = mb.START_DATE
-END_DATE = mb.END_DATE
+# Global variables and objects
+config = configparser.ConfigParser()
+config.read('.config')
+SETLIST_API_KEY = config['API Keys']['SETLIST_API_KEY']
+START_DATE = datetime.date(2015, 1, 1)
+END_DATE = datetime.date.today()
+
+MB_EVENT_PULLER = gen.MusicBrainzPuller(app="MUMT-621 Project testing", version="0")
+SL_EVENT_PULLER = gen.SetlistPuller(api_key=SETLIST_API_KEY)
+VENUE_MAPPER = gen.VenueMapper()
+VENUE_MAPPER.load_json('venue_mapping.json')
 
 # Copied from Dash tutorial - convert pandas dataframe to HTML table
 def generate_table(dataframe, max_rows=10):
@@ -33,82 +42,87 @@ def generate_table(dataframe, max_rows=10):
                         ])
         ]#)
 
-# Only keep events that fall within date range, have venues and artists associated w/them
-def filter_mb_events(mb_events, start_date=START_DATE, end_date=END_DATE):
-    valid_events = []
-    for event in mb_events:
-        event_date = mb.try_parsing_mb_date(event['life-span']['begin'])
-        if (event_date >= start_date) & (event_date <= end_date):
-            if ('place-relation-list' in event.keys()) and ('artist-relation-list' in event.keys()):
-                valid_events += [event]
-    return valid_events
-
-# Pull MusicBrainz events for the query artist and filter to valid events
 def get_query_artist_events(query_mbid):
-    query_mb_events = mb.get_musicbrainz_artist_events(query_mbid, verbose=False)
-    valid_events = filter_mb_events(query_mb_events)
-    return valid_events
+    valid_events, message = gen.get_mb_and_sl_events(query_mbid, \
+        MB_EVENT_PULLER, SL_EVENT_PULLER, VENUE_MAPPER,\
+        START_DATE, END_DATE, sl_page_limit=1)
+    return valid_events, message
 
 # Create geographical plot of query artist events with lat/long
 # Returns plot object, number of events plotted, text summarizing events not plotted
 def generate_artist_events_map(query_artist_events, query_mbid):
-    std_mb_events = [mb.map_mb_event_to_standard(event) for event in query_artist_events]
-    std_mb_events =  [y for x in std_mb_events for y in x if y['artist_mbid']==query_mbid]
-    mappable_events = [event for event in std_mb_events if 'venue_latitude' in event.keys()]
-    non_mappable_events = [event for event in std_mb_events if event not in mappable_events]
-    non_mappable_text = ["{artist} @ {venue} ({date})".format(date=str(x['time'].date()), \
-        artist=x['artist_name'], venue=x['venue_mb_name']) for x in non_mappable_events]
+    std_events = [event.flatten() for event in query_artist_events]
+    std_events =  [y for x in std_events for y in x if y['artist_mbid']==query_mbid]
+    mappable_events = [event for event in std_events if ('venue_lat' in event) or ('city_lat' in event)]
+    non_mappable_events = [event for event in std_events if event not in mappable_events]
+    
+    # All setlist venues should have city coordinates - only MB venues would be non-mappable
+    non_mappable_text = ["{artist} @ {venue} ({date})".format(date=str(x['time']), \
+        artist=x['artist_name'], venue=x['venue_mbname']) for x in non_mappable_events]
     non_mappable_text = "; ".join(non_mappable_text)
+
+    for event in mappable_events:
+        if event['venue_lat']: #not None
+            event['venue_name'] = event['venue_mbname']
+            event['coord_type'] = 'venue'
+            event['lat'] = event['venue_lat']
+            event['lon'] = event['venue_long']
+        else:
+            event['venue_name'] = event['venue_slname']
+            event['coord_type'] = 'city'
+            event['lat'] = event['city_lat']
+            event['lon'] = event['city_long']
+
     if len(mappable_events) > 0:
         df = pd.DataFrame(mappable_events)
-        df['text'] = df['artist_name'] + ' @ ' + df['venue_mb_name'] + \
-            ' (' + df['time'].apply(lambda x: str(x.date())) + ')'
-        events_by_venue_text = df.groupby(['venue_latitude', 'venue_longitude'])['text'].apply('<br>'.join)
-        events_by_venue = df.groupby(['venue_mb_id', 'venue_mb_name', 'venue_latitude', 'venue_longitude']).size().to_frame(name="num_events")
-        events_by_venue = events_by_venue.join(events_by_venue_text).reset_index()
+        df['text'] = df['artist_name'] + ' @ ' + df['venue_name'] + \
+            ' (' + df['time'].apply(lambda x: str(x)) + ')' + '<br>Mapped using '+\
+            df['coord_type'] + ' coordinates.'
 
-        #max_events = events_by_venue['num_events'].max()
-        #min_events = events_by_venue['num_events'].min()
-
-        #MAX_MARKER_SIZE = 25
-        #MIN_MARKER_SIZE = 5
+        df['venue_mbid'] = df['venue_mbid'].fillna('')
+        df['venue_slid'] = df['venue_slid'].fillna('')
+        df['venue_id'] = list(zip(df.venue_mbid, df.venue_slid))
+        df_grouped = df.groupby(['venue_name', 'venue_id', 'lat', 'lon'])
+        events_by_venue_text = df_grouped['text'].agg(lambda x:'<br>'.join(x))
+        events_by_venue = events_by_venue_text.reset_index()
 
         fig = go.Figure(data=go.Scattergeo(
-            lon = events_by_venue['venue_longitude'],
-            lat = events_by_venue['venue_latitude'],
+            lon = events_by_venue['lon'],
+            lat = events_by_venue['lat'],
             text = events_by_venue['text'],
-            customdata = events_by_venue[['venue_mb_name', 'venue_mb_id']].apply(tuple, axis=1),
+            customdata = events_by_venue[['venue_name', 'venue_id']].apply(tuple, axis=1),
             mode = 'markers',
             marker = dict(line=dict(width=1, color='DarkSlateGrey'))
-            #              ,size= (events_by_venue['num_events'] - min_events) * (MAX_MARKER_SIZE - MIN_MARKER_SIZE)/(max_events - min_events) + MIN_MARKER_SIZE)
             ))
         fig.update_geos(showcountries=True)
         return fig, len(mappable_events), non_mappable_text
     else:
         return default_map_figure, 0, non_mappable_text
 
-def get_venue_event_dict(query_artist_events):
-    venue_event_dict = dict()
-    for event in query_artist_events:
-        for place_rel in event['place-relation-list']:
-            if place_rel['type'] == 'held at':
-                place_info = place_rel['place']
-                if place_info['id'] not in venue_event_dict.keys():
-                    new_events = mb.get_musicbrainz_venue_events(place_info['id'], verbose=False)
-                    valid_new_events = filter_mb_events(new_events)
-                    venue_event_dict[place_info['id']] = valid_new_events
-    return venue_event_dict
+def get_events_list(query_artist_events):
+    venue_event_dict = {}
+    all_events = []
+    for event_dict in query_artist_events:
+        event = gen.Event()
+        event.from_dict(event_dict)
+        venue_id = gen.not_none(event.venue.id['mbid'], event.venue.id['slid'])
+        if VENUE_MAPPER.has_id(venue_id):
+          event.set_venue(VENUE_MAPPER.get_venue(venue_id))
+        
+        venue_mbid = event.venue.id['mbid']
+        venue_slid = event.venue.id['slid']
 
-
-def get_artist_recs(venue_event_dict, query_mbid):
-    if venue_event_dict: # False if dict is empty
-        G = nx.Graph()
-        for venue_id, events_list in venue_event_dict.items():
-            mb.add_mb_events_to_bipartite_graph(events_list, G)
-        recs = gen.get_basic_artist_rec_from_bigraph(G, query_mbid)
-    else: #No events found for artist
-        recs = None
-    return recs
+        new_events = []
+        new_key = (venue_mbid, venue_slid)
+        if new_key not in venue_event_dict:
+          new_events, message = gen.get_mb_and_sl_events(venue_mbid, \
+            MB_EVENT_PULLER, SL_EVENT_PULLER, VENUE_MAPPER, \
+            START_DATE, END_DATE, seed_type="venue", slid=venue_slid, sl_page_limit=1)
+          venue_event_dict[new_key] = new_events
+          flattened_events = [x.flatten() for x in new_events]
+          all_events += flattened_events
+    all_events = [y for x in all_events for y in x]
+    return all_events
 
 external_stylesheets = [dbc.themes.SKETCHY]
 
@@ -125,7 +139,7 @@ server = app.server
 secret_divs = [
         html.Div(id='mbid-entry-store', style={'display': 'none'}), 
         html.Div(id='mbid-valid-store', style={'display': 'none'}),
-        html.Div(id='query-venues-store', style={'display': 'none'}),
+        dcc.Store(id='query-venues-store'),
         html.Div(id='recs-state-store', style={'display': 'none'}),
         dcc.Store(id='venue-event-storage')
     ]
@@ -151,7 +165,6 @@ user_inputs = [
 summary_cards = dbc.Row(
     [
         dbc.Col(dbc.Card([dbc.CardHeader("Summary"), dbc.CardBody(id='query-events-text')])),
-        #dbc.Col(dbc.Card([dbc.CardHeader("# Different Venues"), dbc.CardBody(id='query-venues-text')])),
         dbc.Col(dbc.Card([dbc.CardHeader("Mappability"), dbc.CardBody(id='query-map-text')]))
     ]
 )
@@ -244,7 +257,7 @@ def update_mbid_outputs(artist_dropdown_selection):
 # Do first part of event pull - get events for query artist, update cards with summaries
 @app.callback(
     [Output('get-recs-spinner1', 'children'), 
-    Output('query-venues-store', 'children'), Output('query-events-text', 'children'), 
+    Output('query-venues-store', 'data'), Output('query-events-text', 'children'), 
     Output('query-map-text', 'children'), Output('artist-venue-map', 'figure')],
     [Input('mbid-submit-button', 'n_clicks'), Input('get-recs-button', 'n_clicks')],
     [State('mbid-valid-store', 'children'), State('mbid-entry-store', 'children')]
@@ -255,27 +268,34 @@ def update_summary_text(mbid_submit, recs_submit, mbid_valid, mbid_entry):
         if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks":
             return None, None, None, None, default_map_figure
         else:
-            mbid_events = get_query_artist_events(mbid_entry)
-            event_count = len(mbid_events)
-            venue_set = set()
+            events, message = get_query_artist_events(mbid_entry)
+            event_count = len(events)
+            #venue_set = set()
+            venue_list = []
+            venue_count = 0
 
-            for event in mbid_events:
-                if 'place-relation-list' in event.keys():
-                    for place_rel in event['place-relation-list']:
-                        if place_rel['type'] == 'held at':
-                            place_info = place_rel['place']
-                            venue_set.add(place_info['id'])
-            venue_count = len(venue_set)
-            summary_text = "On MusicBrainz: {events} events found at {venues} \
-                unique venues between {beg_date} and {end_date}".format(\
-                    events=event_count, venues=venue_count, \
-                    beg_date=START_DATE.date(), end_date=END_DATE.date())
-            mbid_events_json = json.dumps(mbid_events)
-            map_plot, mappable_events, mappability_text = generate_artist_events_map(mbid_events, mbid_entry)
+            for event in events:
+                if event.venue not in venue_list:
+                    venue_list.append(event.venue)
+                    venue_count += 1
+                #if 'place-relation-list' in event.keys():
+                #    for place_rel in event['place-relation-list']:
+                #        if place_rel['type'] == 'held at':
+                #            place_info = place_rel['place']
+                #            venue_set.add(place_info['id'])
+            #venue_count = len(venue_set)
+            summary_text = message + " {} events were found at {} unique venues.".format(event_count, venue_count)
+            #summary_text = "On MusicBrainz: {events} events found at {venues} \
+            #    unique venues between {beg_date} and {end_date}".format(\
+            #        events=event_count, venues=venue_count, \
+            #        beg_date=START_DATE.date(), end_date=END_DATE.date())
+            serializable_events = [event.to_dict() for event in events]
+            events_json = json.dumps(serializable_events, default=str)
+            map_plot, mappable_events, mappability_text = generate_artist_events_map(events, mbid_entry)
             mappability_message = "{} events mapped.".format(mappable_events)
             if mappable_events < event_count:
                 mappability_message = mappability_message +" No coordinates found for {}.".format(mappability_text)
-            return "Pulled events for {}".format(mbid_entry), mbid_events_json, summary_text, mappability_message, map_plot
+            return "Pulled events for {}".format(mbid_entry), events_json, summary_text, mappability_message, map_plot
     else:
         raise PreventUpdate 
 
@@ -284,27 +304,28 @@ def update_summary_text(mbid_submit, recs_submit, mbid_valid, mbid_entry):
 @app.callback(
     [Output('get-recs-spinner2', 'children'), Output('recs-table', 'children'), 
     Output('recs-state-store', 'children'), Output('venue-event-storage', 'data')],
-    [Input('query-venues-store', 'children'), Input('mbid-entry-store', 'children'), Input('mbid-submit-button', 'n_clicks')],
+    [Input('query-venues-store', 'data'), Input('mbid-entry-store', 'children'), Input('mbid-submit-button', 'n_clicks')],
     [State('recs-state-store', 'children')]
     )
-def update_recs_output(mbid_events_json, mbid_entry, submit_clicks, recs_state_store):
-    if (mbid_events_json is None) or (submit_clicks is None):
+def update_recs_output(events_json, mbid_entry, submit_clicks, recs_state_store):
+    if (events_json is None) or (submit_clicks is None):
         raise PreventUpdate
     else: 
         ctx = dash.callback_context
         if ctx.triggered:
-            #print(ctx.triggered[0]['prop_id'])
             if (ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks") or ((ctx.triggered[0]['prop_id'] == "mbid-entry-store.children") and (mbid_entry != recs_state_store)):
                 return "Clearing recs...", None, None, None
-            elif (ctx.triggered[0]['prop_id'] == "query-venues-store.children"):
-                mbid_events_list = json.loads(mbid_events_json)
-                venue_event_dict = get_venue_event_dict(mbid_events_list)
-                recs = get_artist_recs(venue_event_dict, mbid_entry)
+            elif (ctx.triggered[0]['prop_id'] == "query-venues-store.data"):
+                query_events_list = json.loads(events_json)
+
+                events_list = get_events_list(query_events_list)
+                events_df = pd.DataFrame(events_list)
+                recs = gen.get_basic_artist_rec_from_df(events_df, mbid_entry, with_geo=False)
                 if recs is None:
-                    return "No events found for {} between {} and {}".format(mbid_entry, START_DATE, END_DATE), None, mbid_entry, venue_event_dict
+                    return "No events found for {} between {} and {}".format(mbid_entry, START_DATE, END_DATE), None, mbid_entry, events_list
                 else:
                     recs_table = generate_table(recs, len(recs))
-                    return "Got recs for {}".format(mbid_entry), recs_table, mbid_entry, venue_event_dict
+                    return "Got recs for {}".format(mbid_entry), recs_table, mbid_entry, events_list
             elif (ctx.triggered[0]['prop_id'] == "mbid-entry-store.children") and (mbid_entry == recs_state_store):
                 raise PreventUpdate
 
@@ -312,27 +333,27 @@ def update_recs_output(mbid_events_json, mbid_entry, submit_clicks, recs_state_s
     [Output('venue-events-table', 'children'), Output('venue-events-heading', 'children')],
     [Input('mbid-submit-button', 'n_clicks'), Input('artist-venue-map', 'hoverData')],
     [State('venue-event-storage', 'data')])
-def update_venue_events_on_hover(mbid_submit, hover_data, venue_event_dict):
+def update_venue_events_on_hover(mbid_submit, hover_data, events_list):
     ctx = dash.callback_context
     if ctx.triggered:
         if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks":
             return None, None
         else:
-            if venue_event_dict is None:
+            if events_list is None:
                 raise PreventUpdate
             else:
                 chosen = [point["customdata"] for point in hover_data["points"]]
-                venue_name, venue_mbid = chosen[0]
+                venue_name, venue_id = chosen[0]
 
-                events = venue_event_dict[venue_mbid]
-
-                std_events = [mb.map_mb_event_to_standard(event) for event in events]
-                std_events =  [y for x in std_events for y in x]
-                events_df = pd.DataFrame(std_events)
-                events_df['date'] = events_df['time'].apply(lambda x: str(x.date()))
-                events_table = generate_table(events_df[['date', 'artist_name']], len(events_df))
+                events_df = pd.DataFrame(events_list)
+                events_df['venue_mbid'] = events_df['venue_mbid'].fillna('')
+                events_df['venue_slid'] = events_df['venue_slid'].fillna('')
+                events_df['venue_id'] = list(zip(events_df.venue_mbid, events_df.venue_slid))
+                events_df['event_date'] = events_df['time'].apply(lambda x:str(x))
+                selected = events_df[events_df['venue_id'] == tuple(venue_id)]
+                events_table = generate_table(selected[['event_date', 'artist_name']], len(selected))
                 heading_text = 'Who else played {venue} between {start_date} and {end_date}?'.format(\
-                    venue=venue_name, start_date=START_DATE.date(), end_date=END_DATE.date())
+                    venue=venue_name, start_date=START_DATE, end_date=END_DATE)
                 return events_table, heading_text
 
 if __name__ == '__main__':

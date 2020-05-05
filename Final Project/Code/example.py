@@ -21,7 +21,7 @@ def main():
   mb_event_puller = gen.MusicBrainzPuller(app="MUMT-621 Project testing", version="0")
   sl_event_puller = gen.SetlistPuller(api_key=SETLIST_API_KEY)
   venue_mapper = gen.VenueMapper()
-  venue_mapper.load_json('venue_mapping_by_coords.json')
+  venue_mapper.load_json('venue_mapping.json')
 
   valid_events, message = gen.get_mb_and_sl_events(test_mbid, mb_event_puller, sl_event_puller, venue_mapper,\
    mb.START_DATE, mb.END_DATE)
@@ -47,7 +47,7 @@ def main():
       flattened_events = [x.flatten() for x in new_events]
       all_events += flattened_events
 
-  venue_mapper.dump_json('venue_mapping.json')
+  venue_mapper.dump_json('venue_mapping_mod.json')
   all_events = [y for x in all_events for y in x]
 
   events_df = pd.DataFrame(all_events)

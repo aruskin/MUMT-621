@@ -7,14 +7,6 @@ import requests
 import time
 import json
 
-def try_parsing_mb_date(text):
-    for fmt in ('%Y-%m-%d', '%Y-%m', '%Y'):
-        try:
-            return datetime.datetime.strptime(text, fmt)
-        except ValueError:
-            pass
-    raise ValueError('no valid date format found')
-
 def not_none(x, y=None):
     if x is None:
         return y
@@ -87,7 +79,6 @@ class Venue:
               if place_rel['type'] == 'held at':
                 place_info = place_rel['place']
           self.id['mbid'] = place_info['id']
-          self.id['key_id'] = 'mbid'
           self.name['mbname'] = place_info['name']
           if 'coordinates' in place_info.keys():
             self.coords = (float(place_info['coordinates']['latitude']),\
@@ -95,7 +86,6 @@ class Venue:
 
   def load_from_sl_event(self, sl_event):
     self.id['slid'] = sl_event['venue']['id']
-    self.id['key_id'] = 'slid'
     self.name['slname'] = sl_event['venue']['name']
     self.city['name'] = sl_event['venue']['city']['name']
     self.city['coords'] = (sl_event['venue']['city']['coords']['lat'],\
@@ -155,7 +145,7 @@ class Event:
     if 'life-span' in mb_event.keys():
       for fmt in ('%Y-%m-%d', '%Y-%m', '%Y'):
           try:
-            self.time = datetime.datetime.strptime(mb_event['life-span']['begin'], fmt)
+            self.time = datetime.datetime.strptime(mb_event['life-span']['begin'], fmt).date()
           except ValueError:
             pass
     if 'type' in mb_event.keys():
@@ -170,7 +160,7 @@ class Event:
 
   def load_from_sl_event(self, sl_event):
     self.id['slid'] = sl_event['id']
-    self.time = datetime.datetime.strptime(sl_event['eventDate'], '%d-%m-%Y')
+    self.time = datetime.datetime.strptime(sl_event['eventDate'], '%d-%m-%Y').date()
     new_artist = Artist()
     new_artist.load_from_sl_event(sl_event)
     self.artists.append(new_artist)
@@ -353,6 +343,13 @@ class MusicBrainzPuller:
 #####################
 
 def merge_event_lists(events1, events2, venue_mapper):
+  """
+  Combine two event lists, merging Event objects that describe same event
+
+  Keyword arguments:
+  events1, events2 -- lists of Event objects to merge
+  venue_mapper -- instance of class VenueMapper to update with any new venue mappings found
+  """
   if len(events1) == 0:
     return events2
   elif len(events2) == 0:
@@ -365,7 +362,7 @@ def merge_event_lists(events1, events2, venue_mapper):
       for ev2 in events2:
         if ev2.same_event(ev1):
           found_dupe = True
-          ev2.merge_with(ev1)
+          ev2.merge_with(ev1) # update ev2 in place with values from ev1
           merged_count += 1
           venue_mapper.add_venue(ev2.venue.id['mbid'], ev2.venue)
           venue_mapper.add_venue(ev2.venue.id['slid'], ev2.venue)
@@ -375,13 +372,27 @@ def merge_event_lists(events1, events2, venue_mapper):
     return filtered_events1 + events2
 
 def get_mb_and_sl_events(mbid, mb_event_puller, sl_event_puller, venue_mapper, start_date, end_date, seed_type="artist", slid=None, sl_page_limit=5):
+  """
+  Pull entity's events from MusicBrainz and Setlist.fm and attempt to merge events that occur in both,
+  return list of Event objects and summary text
+
+  Keyword arguments:
+  mbid -- the MusicBrainz ID of the artist or venue for which to pull events
+  mb_event_puller -- instance of class MusicBrainzPuller
+  sl_event_puller -- instance of class SetlistPuller
+  venue_mapper -- instance of class VenueMapper
+  start_date, end_date -- range of dates for events to return (type datetime.date)
+  seed_type -- type of entity to pull events for ("artist" or "venue", default "artist")
+  slid -- the Setlist.fm ID of the venue for which to pull events, if seed_type is "venue" (default None)
+  sl_page_limit -- maximum number of results pages to pull from Setlist.fm (default 5)
+  """
   valid_mb_events = []
   valid_sl_events = []
   message = ""
   if seed_type=='artist':
     sl_seed_id = mbid
   else:
-    sl_seed_id = slid
+    sl_seed_id = slid # only use Setlist.fm ID when pulling venue events
   if mbid:
     mb_events = mb_event_puller.pull_events(mbid=mbid, seed_type=seed_type)
     for mb_event in mb_events:
@@ -390,7 +401,7 @@ def get_mb_and_sl_events(mbid, mb_event_puller, sl_event_puller, venue_mapper, s
       if event.valid_date(start_date, end_date):
         if (len(event.artists) > 0) and not event.venue.is_empty():
           valid_mb_events.append(event)
-    message = "Retrieved {} MusicBrainz events between {} and {}. ".format(len(valid_mb_events), start_date.date(), end_date.date())
+    message = "Retrieved {} MusicBrainz events between {} and {}. ".format(len(valid_mb_events), start_date, end_date)
 
   if sl_seed_id: 
     try:
@@ -400,7 +411,7 @@ def get_mb_and_sl_events(mbid, mb_event_puller, sl_event_puller, venue_mapper, s
         event.load_from_sl_event(sl_event)
         if event.valid_date(start_date, end_date):
           valid_sl_events.append(event)
-      message = message + "Retrieved {} Setlist events between {} and {},".format(len(valid_sl_events), start_date.date(), end_date.date())
+      message = message + "Retrieved {} Setlist events between {} and {},".format(len(valid_sl_events), start_date, end_date)
       message = message + " limited to the {} most recent. ".format(sl_page_limit*20)
     except SetlistAPIError:
       message = message+"Setlist daily query limit reached, so no events pulled. "
@@ -408,10 +419,11 @@ def get_mb_and_sl_events(mbid, mb_event_puller, sl_event_puller, venue_mapper, s
       pass
   print("Retrieved {} MB events, {} SL events".format(len(valid_mb_events), len(valid_sl_events)))
   valid_events = merge_event_lists(valid_mb_events, valid_sl_events, venue_mapper)
-  message = message + "{} unique events. ".format(len(valid_events))
   return valid_events, message
 
+
 def get_mb_artist_area(mbid):
+  """Pull basic artist area information from MusicBrainz, if it exists"""
   mb_info = musicbrainzngs.get_artist_by_id(mbid)
   mb_info = mb_info['artist']
   if 'area' in mb_info.keys():
@@ -421,6 +433,16 @@ def get_mb_artist_area(mbid):
   return area
 
 def get_basic_artist_rec_from_df(df, query_id, with_geo=True, n_recs=10):
+  """
+  Generate DataFrame of artists in the event dataset that have performed at the most (unique) venues
+
+  Keyword arguments:
+  df -- pandas DataFrame of events for venues at which query artist has performed
+  query_id -- MBID of query artist (ensures that query artist not in list of recommendations)
+  with_geo -- whether to return geographic information about the recommended artists (default True)
+  n_recs -- number of recommended artists to return (default 10)
+
+  """
   df['venue_id'] = list(zip(df.venue_mbid, df.venue_slid))
   df = df[df['artist_mbid'] != query_id]
   grouped_df = df.groupby(['artist_mbid', 'artist_name']).agg({'venue_id':'nunique'})
@@ -434,121 +456,3 @@ def get_basic_artist_rec_from_df(df, query_id, with_geo=True, n_recs=10):
     cols_to_return = ['Artist', 'Shared Venues']
   top_artists = top_artists[cols_to_return]
   return top_artists
-
-#####################
-
-# Return list of artists with the most overlapping venues as query artist
-# (Doesn't take into account how often they've played at these venues,
-# whether they've shared bill with query artist, etc.)
-# Assume bipartite graph of artist-venue data
-def get_basic_artist_rec_from_bigraph(bi_G, query_id, n_recs=10):
-  venues, artists = nx.bipartite.sets(bi_G)
-  venue_degrees, artist_degrees = nx.bipartite.degrees(bi_G, artists)
-  artists_ranked = [(k, v) for k, v in sorted(artist_degrees, key=lambda item: item[1], reverse=True) \
-                    if k != query_id]
-  num_venues = len(venues)
-  outlist = artists_ranked[:n_recs]
-  artists_and_info = []
-  for mbid, deg in outlist:
-    artist_info = {'name':'', 'area':'', 'shared_venues': deg}
-    mb_info = musicbrainzngs.get_artist_by_id(mbid)
-    mb_info = mb_info['artist']
-    artist_info['name'] = mb_info['name']
-    if 'area' in mb_info.keys():
-      artist_info['area'] = mb_info['area']['name']
-    artists_and_info += [artist_info]
-  #outlist = [(bi_G.nodes[x]['name'], y) for x, y in outlist]
-  df = pd.DataFrame(artists_and_info)
-  df = df.rename(columns={'name':'Artist', 'shared_venues':'Shared Venues', 'area':'Origin'})
-  return df
-
-
-def plot_network(G, mbid, bipartite=False):
-  seed_artist = G.nodes[mbid]['name']
-
-  # Some things should prob differ depending on type of graph, but still figuring that out
-  if bipartite:
-    plot_title = "<br>Artist-venue graph for {}".format(seed_artist)  
-  else:
-    plot_title = "<br>Artist-event-venue graph for {}".format(seed_artist)  
-  
-  pos = nx.layout.spring_layout(G)
-
-  for node in G.nodes:
-    G.nodes[node]['pos'] = list(pos[node])
-
-  edge_x = []
-  edge_y = []
-  for edge in G.edges():
-      x0, y0 = G.nodes[edge[0]]['pos']
-      x1, y1 = G.nodes[edge[1]]['pos']
-      edge_x.append(x0)
-      edge_x.append(x1)
-      edge_x.append(None)
-      edge_y.append(y0)
-      edge_y.append(y1)
-      edge_y.append(None)
-
-  edge_trace = go.Scatter(
-      x=edge_x, y=edge_y,
-      line=dict(width=0.5, color='#888'),
-      hoverinfo='none',
-      mode='lines')
-
-  node_x = []
-  node_y = []
-  node_text = []
-  node_types = []
-  bipartite_node_coloring = []
-  for node in G.nodes():
-      x, y = G.nodes[node]['pos']
-      node_x.append(x)
-      node_y.append(y)
-      # Every node should have some human readable info associated with it
-      text = G.nodes[node]['name'] + "<br>Type: {}".format(G.nodes[node]['node_type'])
-      if 'date' in G.nodes[node].keys():
-          text = text + "<br>Date: {}".format(G.nodes[node]['date'])
-      if node == mbid:
-        node_types.append('Seed')
-        bipartite_node_coloring.append(G.degree(node))
-      else:
-        node_types.append(G.nodes[node]['node_type'])
-        if bipartite:
-          if G.nodes[node]['node_type'] == "Artist":
-            node_degree = G.degree(node)
-            bipartite_node_coloring.append(node_degree)
-            text = text + "<br>Shared venues: {}".format(node_degree)
-          else:
-            bipartite_node_coloring.append(0)
-      node_text.append(text)
-  
-  # Set node colors based on type (Seed, Artist, Venue, Event)
-  if bipartite:
-    node_colors = bipartite_node_coloring
-  else:
-    node_types, node_colors = np.unique(node_types, return_inverse=True)
-
-  node_trace = go.Scatter(
-      x=node_x, y=node_y, text=node_text,
-      mode='markers',
-      hoverinfo='text',
-      marker=dict(
-          showscale=False,
-          colorscale='YlGnBu',
-          reversescale=True,
-          color=node_colors,
-          size=10
-          ),
-          line_width=2)
-
-  fig = go.Figure(data=[edge_trace, node_trace],
-             layout=go.Layout(
-                title=plot_title,
-                titlefont_size=16,
-                showlegend=False,
-                hovermode='closest',
-                margin=dict(b=20,l=5,r=5,t=40),
-                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
-                )
-  return fig
