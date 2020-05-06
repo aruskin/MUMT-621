@@ -327,9 +327,9 @@ def update_recs_output(events_json, mbid_entry_store, submit_clicks, recs_state_
 
 @app.callback(
     [Output('venue-events-table', 'children'), Output('venue-events-heading', 'children')],
-    [Input('mbid-submit-button', 'n_clicks'), Input('artist-venue-map', 'hoverData')],
+    [Input('mbid-submit-button', 'n_clicks'), Input('artist-venue-map', 'clickData')],
     [State('venue-event-storage', 'data')])
-def update_venue_events_on_hover(mbid_submit, hover_data, events_list):
+def update_venue_events_on_click(mbid_submit, selected_data, events_list):
     ctx = dash.callback_context
     if ctx.triggered:
         if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks":
@@ -338,7 +338,7 @@ def update_venue_events_on_hover(mbid_submit, hover_data, events_list):
             if events_list is None:
                 raise PreventUpdate
             else:
-                chosen = [point["customdata"] for point in hover_data["points"]]
+                chosen = [point["customdata"] for point in selected_data["points"]]
                 venue_name, venue_id = chosen[0]
 
                 events_df = pd.DataFrame(events_list)
