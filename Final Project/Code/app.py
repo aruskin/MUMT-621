@@ -96,9 +96,13 @@ recs_output = html.Div(id='get-recs-container',
     children=[
         dbc.Row(dbc.Spinner(html.Div(id='get-recs-spinner1'), color="primary")),
         dbc.Row(dbc.Spinner(html.Div(id='get-recs-spinner2'), color="secondary")),
-        dbc.Row(dbc.Col(dash_table.DataTable(id='recs-table', 
-            columns=[{"name": i, "id": i} for i in REC_COLUMNS]), 
-            align='center'))
+        dbc.Row([
+            dbc.Col(dash_table.DataTable(id='recs-table', 
+                columns=[{"name": i, "id": i} for i in REC_COLUMNS]), 
+            id='recs-table-container', align='center'),
+            dbc.Tooltip("Click on a cell for more information!",
+                target='recs-table-container')
+        ])
     ],
     style=TOGGLE_OFF)
 
@@ -124,7 +128,9 @@ summary_cards = [
 map_component = [
     dbc.Col([dcc.Graph(id='artist-venue-map', figure=default_map_figure, 
         config={'scrollZoom':True, 'showTips':True})], 
-        id='map-container')
+        id='map-container'),
+    dbc.Tooltip("Click on a venue to see who else has played there!",
+        target='map-container')
     ]
 
 header = [
