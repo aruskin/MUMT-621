@@ -45,7 +45,9 @@ REC_COLUMNS = ["Artist", "Shared Venues"]
 external_stylesheets = [dbc.themes.SKETCHY]
 
 # Empty map figure (note: no country borders)
-default_map_figure = go.Figure(go.Scattergeo())
+default_map_figure = go.Figure(data=go.Scattergeo(),
+    layout=go.Layout(autosize=True, margin=go.layout.Margin(l=0, r=0, t=0, b=0),
+        showlegend=False))
 
 # Copied from Dash tutorial - convert pandas dataframe to HTML table
 def generate_table(dataframe, max_rows=10):
