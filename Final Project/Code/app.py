@@ -42,6 +42,11 @@ SL_VENUE_PAGE_LIMIT = 1
 
 REC_COLUMNS = ["Artist", "Shared Venues"]
 
+external_stylesheets = [dbc.themes.SKETCHY]
+
+# Empty map figure (note: no country borders)
+default_map_figure = go.Figure(go.Scattergeo())
+
 # Copied from Dash tutorial - convert pandas dataframe to HTML table
 def generate_table(dataframe, max_rows=10):
     return \
@@ -50,16 +55,10 @@ def generate_table(dataframe, max_rows=10):
                             html.Tr([html.Th(col) for col in dataframe.columns])
                         ),
                         html.Tbody([
-                            html.Tr([html.Td(dataframe.iloc[i][col]) for col in dataframe.columns]) \
+                            html.Tr([html.Td(dataframe.iloc[i][col]) for col in dataframe.columns])\
                             for i in range(min(len(dataframe), max_rows))
                         ])
         ]
-
-external_stylesheets = [dbc.themes.SKETCHY]
-
-# Empty map figure (note: no country borders)
-default_map_figure = go.Figure(go.Scattergeo())
-
 #########
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
@@ -68,8 +67,7 @@ server = app.server
 
 # Secret divs for intermediate value storage
 secret_divs = [
-        html.Div(id='mbid-entry-store', style={'display': 'none'}), 
-        html.Div(id='mbid-valid-store', style={'display': 'none'}),
+        dcc.Store(id='mbid-entry-store'),
         dcc.Store(id='query-venues-store'),
         html.Div(id='recs-state-store', style={'display': 'none'}),
         dcc.Store(id='venue-event-storage')
@@ -93,7 +91,8 @@ recs_output = html.Div(id='get-recs-container',
     children=[
         dbc.Row(dbc.Spinner(html.Div(id='get-recs-spinner1'), color="primary")),
         dbc.Row(dbc.Spinner(html.Div(id='get-recs-spinner2'), color="secondary")),
-        dbc.Row(dbc.Col(dash_table.DataTable(id='recs-table', columns=[{"name": i, "id": i} for i in REC_COLUMNS]), 
+        dbc.Row(dbc.Col(dash_table.DataTable(id='recs-table', 
+            columns=[{"name": i, "id": i} for i in REC_COLUMNS]), 
             align='center'))
     ],
     style={'display': 'none'})
@@ -102,9 +101,12 @@ summary_cards = dbc.Row(
     [
         dbc.Col(dbc.Card([dbc.CardHeader("Summary"), dbc.CardBody(id='query-events-text')])),
         dbc.Col(dbc.Card([dbc.CardHeader("Mappability"), dbc.CardBody(id='query-map-text')])),
-        dbc.Col(dbc.Card([dbc.CardHeader("More info about recommendations"), 
-                dbc.CardBody(id='rec-select-text'), 
-                dbc.CardLink(id='rec-select-mb-link')]))
+        dbc.Col(dbc.Card([
+                    dbc.CardHeader("More info about recommendations"), 
+                    dbc.CardBody(id='rec-select-text'), 
+                    dbc.CardLink(id='rec-select-mb-link')],
+                id='more-info-card',
+                style={'display':'none'}))
     ]
 )
 
@@ -126,13 +128,17 @@ app.layout = dbc.Container([
         dbc.Col([
             summary_cards,
             dbc.Row([
-                dbc.Col([dcc.Graph(id='artist-venue-map', figure=default_map_figure)], id='map-container', width='auto')
+                dbc.Col([dcc.Graph(id='artist-venue-map', figure=default_map_figure)], 
+                    id='map-container', width='auto')
             ]),
             dbc.Row([html.H3(id='venue-events-heading')]),
             dbc.Row([dbc.Table(id='venue-events-table')])
             ], width=8)
         ])
     ], fluid=True)
+
+###############
+# Callbacks!
 
 # When user enters artist name and hits submit button, we query MusicBrainz
 # and populate dropdown list with the results 
@@ -146,17 +152,15 @@ def update_artist_dropdown(n_clicks, artist_input_value):
     if n_clicks is None:
         raise PreventUpdate
     else:
-        # This will still result in an error when empty input submitted
-        # Need to figure out way around that
         if artist_input_value == "":
             message = "Please enter an artist name"
-            return message, None
+            return message, []
         else:
             try:
                 result = musicbrainzngs.search_artists(artist=artist_input_value)
             except musicbrainzngs.WebServiceError as exc:
                 message = "Something went wrong with the request: %s" % exc
-                return message, None
+                return message, []
             else:
                 options = []
                 num_artists = result['artist-count']
@@ -184,16 +188,20 @@ def toggle_artist_dropdown(artist_options):
 # When user selects option from dropdown list, update hidden elements for storing
 # query MBID and whether it's valid (the validity thing may no longer be necessary...)
 @app.callback(
-    [Output('mbid-entry-store', 'children'), Output('mbid-valid-store', 'children'),
-    Output('get-recs-button', 'style')],
-    [Input('mbid-submit-button', 'n_clicks'), Input('artist-dropdown', 'value')])
-def update_mbid_outputs(mbid_submit, artist_dropdown_selection):
+    [Output('mbid-entry-store', 'data'), Output('get-recs-button', 'style')],
+    [Input('mbid-submit-button', 'n_clicks'), Input('artist-dropdown', 'value')],
+    [State('artist-dropdown', 'options')])
+def update_mbid_outputs(mbid_submit, artist_dropdown_selection, artist_dropdown_options):
     ctx = dash.callback_context
     if ctx.triggered:
         if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks":
-            return None, False, {'display': 'none'}
+            return None, {'display': 'none'}
         else:
-            return artist_dropdown_selection, True, {'display': 'block'}
+            selected = [x['label'] for x in artist_dropdown_options \
+                if x['value'] == artist_dropdown_selection]
+            mbid_store_dict = dict(mbid=artist_dropdown_selection, name=selected[0], valid=True)
+            mbid_store_data = json.dumps(mbid_store_dict)
+            return mbid_store_data, {'display': 'block'}
     else:
         raise PreventUpdate
 
@@ -218,14 +226,17 @@ def toggle_rec_area_visibility(mbid_submit, recs_submit):
     Output('query-venues-store', 'data'), Output('query-events-text', 'children'), 
     Output('query-map-text', 'children'), Output('artist-venue-map', 'figure')],
     [Input('mbid-submit-button', 'n_clicks'), Input('get-recs-button', 'n_clicks')],
-    [State('mbid-valid-store', 'children'), State('mbid-entry-store', 'children')]
+    [State('mbid-entry-store', 'data')]
 )
-def update_summary_text(mbid_submit, recs_submit, mbid_valid, mbid_entry):
+def update_summary_text(mbid_submit, recs_submit, mbid_entry_store):
     ctx = dash.callback_context
     if ctx.triggered:
         if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks":
             return None, None, None, None, default_map_figure
         else:
+            mbid_entry_dict = json.loads(mbid_entry_store)
+            mbid_entry = mbid_entry_dict['mbid']
+            artist_name = mbid_entry_dict['name']
             events, message = gen.get_mb_and_sl_events(mbid_entry, \
                 MB_EVENT_PULLER, SL_EVENT_PULLER, VENUE_MAPPER,\
                 START_DATE, END_DATE, sl_page_limit=SL_ARTIST_PAGE_LIMIT)
@@ -237,51 +248,66 @@ def update_summary_text(mbid_submit, recs_submit, mbid_valid, mbid_entry):
                 if event.venue not in venue_list:
                     venue_list.append(event.venue)
                     venue_count += 1
-            summary_text = message + " {} events were found at {} unique venues.".format(event_count, venue_count)
+            summary_text = message + " {} events were found at {} unique venues.".format(\
+                event_count, venue_count)
             serializable_events = [event.to_dict() for event in events]
             events_json = json.dumps(serializable_events, default=str)
             map_plot, mappable_events, mappability_text = gen.generate_artist_events_map(events, mbid_entry)
             mappability_message = "{} events mapped.".format(mappable_events)
             if mappable_events < event_count:
                 mappability_message = mappability_message +" No coordinates found for {}.".format(mappability_text)
-            return "Pulled events for {}".format(mbid_entry), events_json, summary_text, mappability_message, map_plot
+            return "Pulled events for {}".format(artist_name), events_json, summary_text, mappability_message, map_plot
     else:
         raise PreventUpdate 
 
 # When user hits "Find Related Artists", generate list of recommendations based on
 # query artist (need to have a valid MBID stored) and display in table
 @app.callback(
-    [Output('get-recs-spinner2', 'children'), #Output('recs-table', 'children'), 
-    Output('recs-table', 'data'), Output('recs-table', 'active_cell'), #Output('recs-table', 'columns'),
+    [Output('get-recs-spinner2', 'children'), 
+    Output('recs-table', 'data'), Output('recs-table', 'active_cell'), Output('recs-table', 'selected_cells'),
     Output('recs-state-store', 'children'), Output('venue-event-storage', 'data')],
-    [Input('query-venues-store', 'data'), Input('mbid-entry-store', 'children'), Input('mbid-submit-button', 'n_clicks')],
-    [State('recs-state-store', 'children')]
+    [Input('query-venues-store', 'data'), Input('mbid-entry-store', 'data'), 
+    Input('mbid-submit-button', 'n_clicks')],
+    [State('recs-state-store', 'children'), State('recs-table', 'active_cell'), State('recs-table', 'selected_cells')]
     )
-def update_recs_output(events_json, mbid_entry, submit_clicks, recs_state_store):
-    if (events_json is None) or (submit_clicks is None):
-        raise PreventUpdate
-    else: 
-        ctx = dash.callback_context
-        if ctx.triggered:
-            if (ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks") or \
-                ((ctx.triggered[0]['prop_id'] == "mbid-entry-store.children") and \
-                (mbid_entry != recs_state_store)):
-                return "Clearing recs...", [{}], None, None, None
-            elif (ctx.triggered[0]['prop_id'] == "query-venues-store.data"):
-                query_events_list = json.loads(events_json)
+def update_recs_output(events_json, mbid_entry_store, submit_clicks, recs_state_store, active_cell, selected_cell):
+    ctx = dash.callback_context
 
-                events_list = gen.get_events_list(\
-                    query_events_list, MB_EVENT_PULLER, SL_EVENT_PULLER, VENUE_MAPPER, \
-                    START_DATE, END_DATE, SL_VENUE_PAGE_LIMIT)
-                if len(events_list) > 0:
-                    events_df = pd.DataFrame(events_list)
-                    recs = gen.get_basic_artist_rec_from_df(events_df, mbid_entry, with_geo=False)
-                    recs_table = recs.to_dict('records')
-                    return "Got recs for {}".format(mbid_entry), recs_table, None, mbid_entry, events_list
-                else:
-                    return "No events found for {} between {} and {}".format(mbid_entry, START_DATE, END_DATE), [{}], None, mbid_entry, events_list
-            elif (ctx.triggered[0]['prop_id'] == "mbid-entry-store.children") and (mbid_entry == recs_state_store):
-                raise PreventUpdate
+    if ctx.triggered:
+        if mbid_entry_store:
+            mbid_entry_dict = json.loads(mbid_entry_store)
+            mbid_entry = mbid_entry_dict['mbid']
+            artist_name = mbid_entry_dict['name']
+        else:
+            mbid_entry = None
+        if active_cell:
+            deactivated_cell = dict(row=-1, column=-1, column_id=None, row_id=None)
+        else:
+            deactivated_cell = None
+        trigger = ctx.triggered[0]['prop_id']
+        if (trigger == "query-venues-store.data") and events_json:
+            query_events_list = json.loads(events_json)
+
+            events_list = gen.get_events_list(\
+                query_events_list, MB_EVENT_PULLER, SL_EVENT_PULLER, VENUE_MAPPER, \
+                START_DATE, END_DATE, SL_VENUE_PAGE_LIMIT)
+            if len(events_list) > 0:
+                events_df = pd.DataFrame(events_list)
+                recs = gen.get_basic_artist_rec_from_df(events_df, mbid_entry, with_geo=False)
+                recs_table = recs.to_dict('records')
+                message = "Got recs for {}".format(artist_name)
+            else:
+                message = "No events found for {} between {} and {}".format(\
+                    artist_name, START_DATE, END_DATE)
+                recs_table = [{}]
+            return message, recs_table, deactivated_cell, [], mbid_entry, events_list
+        elif (trigger == "mbid-entry-store.data") and (mbid_entry == recs_state_store):
+            raise PreventUpdate
+        else:
+            message = ""
+            return message, [{}], deactivated_cell, [], None, None
+    else:
+        raise PreventUpdate
 
 @app.callback(
     [Output('venue-events-table', 'children'), Output('venue-events-heading', 'children')],
@@ -291,7 +317,7 @@ def update_venue_events_on_hover(mbid_submit, hover_data, events_list):
     ctx = dash.callback_context
     if ctx.triggered:
         if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks":
-            return None, None
+            return None, ""
         else:
             if events_list is None:
                 raise PreventUpdate
@@ -310,17 +336,19 @@ def update_venue_events_on_hover(mbid_submit, hover_data, events_list):
                     venue=venue_name, start_date=START_DATE, end_date=END_DATE)
                 return events_table, heading_text
 
-@app.callback([Output('rec-select-text', 'children'), Output('rec-select-mb-link', 'children'), Output('rec-select-mb-link', 'href')],
+@app.callback([Output('more-info-card', 'style'), 
+    Output('rec-select-text', 'children'), 
+    Output('rec-select-mb-link', 'children'), Output('rec-select-mb-link', 'href')],
     [Input('mbid-submit-button', 'n_clicks'), Input('recs-table', 'active_cell')],
     [State('venue-event-storage', 'data'), State('recs-table', 'data')])
 def display_recommended_artist_info(mbid_submit, active_cell, events_list, recs_table_data):
     ctx = dash.callback_context
     if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks":
-        return None, None, None
+        return {'display':'none'}, "", "", ""
     else:
         if active_cell is None:
             raise PreventUpdate
-        else:
+        elif active_cell['row_id']:
             active_row_id = active_cell['row_id']
             active_col_id = active_cell['column_id']
             selected_record = [x for x in recs_table_data if x['id']==active_row_id][0]
@@ -331,7 +359,7 @@ def display_recommended_artist_info(mbid_submit, active_cell, events_list, recs_
                 message = 'Find out more about {} !'.format(artist)
                 mb_link_text = 'MusicBrainz artist page'
                 mb_artist_page = 'https://musicbrainz.org/artist/' + artist_mbid
-                return message, mb_link_text, mb_artist_page
+                return {'display':'block'}, message, mb_link_text, mb_artist_page
             elif active_col_id == 'Shared Venues':
                 relevant_events = [event for event in events_list if event['artist_mbid']==artist_mbid]
                 event_text = ["{venue} ({date})".format(date=str(x['time']), \
@@ -340,7 +368,9 @@ def display_recommended_artist_info(mbid_submit, active_cell, events_list, recs_
                 message = message + " {}'s events: ".format(artist)
                 message = message + "; ".join(event_text)
                 
-                return message, None, None
+                return {'display':'block'}, message, "", ""
+        else: 
+            return {'display':'none'}, "", "", ""
 
 
 if __name__ == '__main__':
