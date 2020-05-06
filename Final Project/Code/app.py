@@ -130,7 +130,7 @@ map_component = [
         config={'scrollZoom':True, 'showTips':True})], 
         id='map-container'),
     dbc.Tooltip("Click on a venue to see who else has played there!",
-        target='map-container')
+        target='map-container', hide_arrow=True, style=TOGGLE_OFF, id='map-tooltip')
     ]
 
 header = [
@@ -287,7 +287,8 @@ def update_summary_text(mbid_submit, recs_submit, mbid_entry_store):
 @app.callback(
     [Output('get-recs-spinner2', 'children'), 
     Output('recs-table', 'data'), Output('recs-table', 'active_cell'), Output('recs-table', 'selected_cells'),
-    Output('recs-state-store', 'children'), Output('venue-event-storage', 'data')],
+    Output('recs-state-store', 'children'), Output('venue-event-storage', 'data'),
+    Output('map-tooltip', 'style')],
     [Input('query-venues-store', 'data'), Input('mbid-entry-store', 'data'), 
     Input('mbid-submit-button', 'n_clicks')],
     [State('recs-state-store', 'children'), State('recs-table', 'active_cell'), State('recs-table', 'selected_cells')]
@@ -302,10 +303,12 @@ def update_recs_output(events_json, mbid_entry_store, submit_clicks, recs_state_
             artist_name = mbid_entry_dict['name']
         else:
             mbid_entry = None
+
         if active_cell:
             deactivated_cell = dict(row=-1, column=-1, column_id=None, row_id=None)
         else:
             deactivated_cell = None
+
         trigger = ctx.triggered[0]['prop_id']
         if (trigger == "query-venues-store.data") and events_json:
             query_events_list = json.loads(events_json)
@@ -318,16 +321,18 @@ def update_recs_output(events_json, mbid_entry_store, submit_clicks, recs_state_
                 recs = gen.get_basic_artist_rec_from_df(events_df, mbid_entry, with_geo=False)
                 recs_table = recs.to_dict('records')
                 message = "Got recs for {}".format(artist_name)
+                toggle = TOGGLE_ON
             else:
                 message = "No events found for {} between {} and {}".format(\
                     artist_name, START_DATE, END_DATE)
                 recs_table = [{}]
-            return message, recs_table, deactivated_cell, [], mbid_entry, events_list
+                toggle = TOGGLE_OFF
+            return message, recs_table, deactivated_cell, [], mbid_entry, events_list, toggle
         elif (trigger == "mbid-entry-store.data") and (mbid_entry == recs_state_store):
             raise PreventUpdate
         else:
             message = ""
-            return message, [{}], deactivated_cell, [], None, None
+            return message, [{}], deactivated_cell, [], None, None, TOGGLE_OFF
     else:
         raise PreventUpdate
 
