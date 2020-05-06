@@ -89,7 +89,7 @@ user_inputs = [
             style=TOGGLE_OFF),
     html.Div(id='mbid-message'),
     html.Br(),
-    dbc.Button(id='get-recs-button', children='Find Related Artists', style={'display':'none'})
+    dbc.Button(id='get-recs-button', children='Find Related Artists', style=TOGGLE_OFF)
 ]
 
 recs_output = html.Div(id='get-recs-container',
@@ -118,7 +118,7 @@ summary_cards = [
                 dbc.CardBody(id='rec-select-text', style=card_body_style), 
                 dbc.CardLink(id='rec-select-mb-link')],
             id='more-info-card',
-            style={'display':'none'}))
+            style=TOGGLE_OFF))
     ]
 
 map_component = [
@@ -361,10 +361,12 @@ def update_venue_events_on_hover(mbid_submit, hover_data, events_list):
 def display_recommended_artist_info(mbid_submit, active_cell, events_list, recs_table_data, mbid_store):
     ctx = dash.callback_context
     if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks":
-        return {'display':'none'}, "", "", ""
+        return TOGGLE_OFF, "", "", ""
     else:
         if active_cell is None:
             raise PreventUpdate
+        elif 'row_id' not in active_cell:
+            return TOGGLE_OFF, "", "", ""
         elif active_cell['row_id']:
             active_row_id = active_cell['row_id']
             active_col_id = active_cell['column_id']
@@ -380,7 +382,7 @@ def display_recommended_artist_info(mbid_submit, active_cell, events_list, recs_
                 message = 'Find out more about {}:'.format(cell_artist)
                 mb_link_text = 'MusicBrainz artist page'
                 mb_artist_page = 'https://musicbrainz.org/artist/' + artist_mbid
-                return {'display':'block'}, message, mb_link_text, mb_artist_page
+                return TOGGLE_ON, message, mb_link_text, mb_artist_page
             elif active_col_id == 'Shared Venues':
                 relevant_events = [event for event in events_list if \
                     event['artist_mbid'] == artist_mbid]
@@ -392,9 +394,9 @@ def display_recommended_artist_info(mbid_submit, active_cell, events_list, recs_
                 message = message + " {}'s events: ".format(cell_artist)
                 message = message + "; ".join(event_text)
                 
-                return {'display':'block'}, message, "", ""
+                return TOGGLE_ON, message, "", ""
         else: 
-            return {'display':'none'}, "", "", ""
+            return TOGGLE_OFF, "", "", ""
 
 
 if __name__ == '__main__':
