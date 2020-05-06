@@ -351,8 +351,9 @@ def update_venue_events_on_hover(mbid_submit, hover_data, events_list):
     Output('rec-select-text', 'children'), 
     Output('rec-select-mb-link', 'children'), Output('rec-select-mb-link', 'href')],
     [Input('mbid-submit-button', 'n_clicks'), Input('recs-table', 'active_cell')],
-    [State('venue-event-storage', 'data'), State('recs-table', 'data')])
-def display_recommended_artist_info(mbid_submit, active_cell, events_list, recs_table_data):
+    [State('venue-event-storage', 'data'), State('recs-table', 'data'), 
+    State('mbid-entry-store', 'data')])
+def display_recommended_artist_info(mbid_submit, active_cell, events_list, recs_table_data, mbid_store):
     ctx = dash.callback_context
     if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks":
         return {'display':'none'}, "", "", ""
@@ -363,20 +364,27 @@ def display_recommended_artist_info(mbid_submit, active_cell, events_list, recs_
             active_row_id = active_cell['row_id']
             active_col_id = active_cell['column_id']
             selected_record = [x for x in recs_table_data if x['id']==active_row_id][0]
-            artist = selected_record['Artist']
+            cell_artist = selected_record['Artist']
             artist_mbid = selected_record['id']
             shared_venues = selected_record['Shared Venues']
+
+            mbid_entry_dict = json.loads(mbid_store)
+            query_artist = mbid_entry_dict['name']
+
             if active_col_id == 'Artist':
-                message = 'Find out more about {} !'.format(artist)
+                message = 'Find out more about {}:'.format(cell_artist)
                 mb_link_text = 'MusicBrainz artist page'
                 mb_artist_page = 'https://musicbrainz.org/artist/' + artist_mbid
                 return {'display':'block'}, message, mb_link_text, mb_artist_page
             elif active_col_id == 'Shared Venues':
-                relevant_events = [event for event in events_list if event['artist_mbid']==artist_mbid]
-                event_text = ["{venue} ({date})".format(date=str(x['time']), \
-                    venue=gen.not_none(x['venue_mbname'], x['venue_slname'])) for x in relevant_events]
-                message = '{} and the query artist have recently played at {} of the same venues.'.format(artist, shared_venues)
-                message = message + " {}'s events: ".format(artist)
+                relevant_events = [event for event in events_list if \
+                    event['artist_mbid'] == artist_mbid]
+                event_text = ["{venue} ({date})".format(\
+                    date=str(x['time']), venue=gen.not_none(x['venue_mbname'], x['venue_slname'])) \
+                    for x in relevant_events]
+                message = '{} and {} have recently played at {} of the same venues.'.format(\
+                    cell_artist, query_artist, shared_venues)
+                message = message + " {}'s events: ".format(cell_artist)
                 message = message + "; ".join(event_text)
                 
                 return {'display':'block'}, message, "", ""
