@@ -360,14 +360,20 @@ def update_venue_events_on_hover(mbid_submit, hover_data, events_list):
     State('mbid-entry-store', 'data')])
 def display_recommended_artist_info(mbid_submit, active_cell, events_list, recs_table_data, mbid_store):
     ctx = dash.callback_context
-    if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks":
-        return TOGGLE_OFF, "", "", ""
+    card_display_out = TOGGLE_OFF
+    card_text_out = ""
+    mb_link_text_out = ""
+    mb_link_url_out = ""
+    if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks": #hide and clear on Submit
+        return card_display_out, card_text_out, mb_link_text_out, mb_link_url_out
     else:
         if active_cell is None:
             raise PreventUpdate
-        elif 'row_id' not in active_cell:
-            return TOGGLE_OFF, "", "", ""
-        elif active_cell['row_id']:
+        elif 'row_id' not in active_cell: #selecting cell in empty table
+            return card_display_out, card_text_out, mb_link_text_out, mb_link_url_out
+        elif active_cell['row_id'] is None:
+            return card_display_out, card_text_out, mb_link_text_out, mb_link_url_out
+        else:
             active_row_id = active_cell['row_id']
             active_col_id = active_cell['column_id']
             selected_record = [x for x in recs_table_data if x['id']==active_row_id][0]
@@ -378,12 +384,14 @@ def display_recommended_artist_info(mbid_submit, active_cell, events_list, recs_
             mbid_entry_dict = json.loads(mbid_store)
             query_artist = mbid_entry_dict['name']
 
+            card_display_out = TOGGLE_ON
+
             if active_col_id == 'Artist':
-                message = 'Find out more about {}:'.format(cell_artist)
-                mb_link_text = 'MusicBrainz artist page'
-                mb_artist_page = 'https://musicbrainz.org/artist/' + artist_mbid
-                return TOGGLE_ON, message, mb_link_text, mb_artist_page
-            elif active_col_id == 'Shared Venues':
+                card_text_out = 'Find out more about {}:'.format(cell_artist)
+                mb_link_text_out = 'MusicBrainz artist page'
+                mb_link_url_out = 'https://musicbrainz.org/artist/' + artist_mbid
+                return card_display_out, card_text_out, mb_link_text_out, mb_link_url_out
+            else: #if active_col_id == 'Shared Venues' -- only other option
                 relevant_events = [event for event in events_list if \
                     event['artist_mbid'] == artist_mbid]
                 event_text = ["{venue} ({date})".format(\
@@ -392,12 +400,9 @@ def display_recommended_artist_info(mbid_submit, active_cell, events_list, recs_
                 message = '{} and {} have recently played at {} of the same venues.'.format(\
                     cell_artist, query_artist, shared_venues)
                 message = message + " {}'s events: ".format(cell_artist)
-                message = message + "; ".join(event_text)
+                card_text_out = message + "; ".join(event_text)
                 
-                return TOGGLE_ON, message, "", ""
-        else: 
-            return TOGGLE_OFF, "", "", ""
-
+            return card_display_out, card_text_out, mb_link_text_out, mb_link_url_out
 
 if __name__ == '__main__':
     app.run_server(debug=True)
