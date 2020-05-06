@@ -97,18 +97,30 @@ recs_output = html.Div(id='get-recs-container',
     ],
     style={'display': 'none'})
 
-summary_cards = dbc.Row(
-    [
-        dbc.Col(dbc.Card([dbc.CardHeader("Summary"), dbc.CardBody(id='query-events-text')])),
-        dbc.Col(dbc.Card([dbc.CardHeader("Mappability"), dbc.CardBody(id='query-map-text')])),
-        dbc.Col(dbc.Card([
-                    dbc.CardHeader("More info about recommendations"), 
-                    dbc.CardBody(id='rec-select-text'), 
-                    dbc.CardLink(id='rec-select-mb-link')],
-                id='more-info-card',
-                style={'display':'none'}))
+card_body_style = {'maxHeight':'200px', 'overflowY':'scroll'}
+
+summary_cards = [
+    dbc.Col(dbc.Card([
+                dbc.CardHeader("Summary"), 
+                dbc.CardBody(id='query-events-text', style=card_body_style)
+        ])),
+    dbc.Col(dbc.Card([
+                dbc.CardHeader("Mappability"), 
+                dbc.CardBody(id='query-map-text', style=card_body_style)
+        ])),
+    dbc.Col(dbc.Card([
+                dbc.CardHeader("More info about recommendations"), 
+                dbc.CardBody(id='rec-select-text', style=card_body_style), 
+                dbc.CardLink(id='rec-select-mb-link')],
+            id='more-info-card',
+            style={'display':'none'}))
     ]
-)
+
+map_component = [
+    dbc.Col([dcc.Graph(id='artist-venue-map', figure=default_map_figure, 
+        config={'scrollZoom':True, 'showTips':True})], 
+        id='map-container')
+    ]
 
 header = [
     html.H1('Get Artist Recommendations by Tour History',
@@ -126,13 +138,11 @@ app.layout = dbc.Container([
         ], width=4),
         # 2nd column: summary of info about query artist & map
         dbc.Col([
-            summary_cards,
-            dbc.Row([
-                dbc.Col([dcc.Graph(id='artist-venue-map', figure=default_map_figure)], 
-                    id='map-container', width='auto')
-            ]),
+            dbc.Row(summary_cards),
+            dbc.Row(map_component),
             dbc.Row([html.H3(id='venue-events-heading')]),
-            dbc.Row([dbc.Table(id='venue-events-table')])
+            dbc.Row([dbc.Table(id='venue-events-table')], 
+                style={'maxHeight': '250px','overflowY':'scroll'})
             ], width=8)
         ])
     ], fluid=True)
@@ -186,7 +196,7 @@ def toggle_artist_dropdown(artist_options):
             return {'display': 'block'}
 
 # When user selects option from dropdown list, update hidden elements for storing
-# query MBID and whether it's valid (the validity thing may no longer be necessary...)
+# query MBID and toggle visibility of Find Related Artists button
 @app.callback(
     [Output('mbid-entry-store', 'data'), Output('get-recs-button', 'style')],
     [Input('mbid-submit-button', 'n_clicks'), Input('artist-dropdown', 'value')],
@@ -194,12 +204,13 @@ def toggle_artist_dropdown(artist_options):
 def update_mbid_outputs(mbid_submit, artist_dropdown_selection, artist_dropdown_options):
     ctx = dash.callback_context
     if ctx.triggered:
+        # If user hits Submit button, clear out entry store and hide Find Related Artists button
         if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks":
             return None, {'display': 'none'}
         else:
             selected = [x['label'] for x in artist_dropdown_options \
                 if x['value'] == artist_dropdown_selection]
-            mbid_store_dict = dict(mbid=artist_dropdown_selection, name=selected[0], valid=True)
+            mbid_store_dict = dict(mbid=artist_dropdown_selection, name=selected[0])
             mbid_store_data = json.dumps(mbid_store_dict)
             return mbid_store_data, {'display': 'block'}
     else:
