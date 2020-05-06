@@ -104,7 +104,8 @@ class Venue:
   def flatten(self):
     new_dict = dict(venue_mbid=self.id['mbid'], venue_slid=self.id['slid'], \
       venue_mbname=self.name['mbname'], venue_slname=self.name['slname'], \
-      city_name=self.city['name'], city_lat=self.city['coords'][0], city_long=self.city['coords'][1],\
+      city_name=self.city['name'], city_lat=self.city['coords'][0], \
+      city_long=self.city['coords'][1], \
       venue_lat=self.coords[0], venue_long=self.coords[1])
     return new_dict
 
@@ -204,7 +205,8 @@ class Event:
     else: 
       these_artists = set([a.to_tuple() for a in self.artists])
       those_artists = set([a.to_tuple() for a in other.artists])
-      if (self.time == other.time) and (these_artists.issubset(those_artists) or those_artists.issubset(these_artists)):
+      if (self.time == other.time) and (these_artists.issubset(those_artists) or \
+        those_artists.issubset(these_artists)):
         return True #probably the same event (assume artists only have 1 event per day)
       else:
         return False
@@ -277,7 +279,8 @@ class SetlistPuller:
     self.api_key = api_key
 
   def pull_page(self, seed_id, seed_type, page):
-    request = 'https://api.setlist.fm/rest/1.0/{0}/{1}/setlists?p={2}'.format(seed_type, seed_id, page)
+    request = 'https://api.setlist.fm/rest/1.0/{0}/{1}/setlists?p={2}'.format(\
+      seed_type, seed_id, page)
     headers = {'Accept': 'application/json', 'x-api-key': self.api_key}
     results = requests.get(request, headers=headers)
     json_results = results.json()
@@ -371,10 +374,11 @@ def merge_event_lists(events1, events2, venue_mapper):
     print("Merged {} events".format(merged_count))
     return filtered_events1 + events2
 
-def get_mb_and_sl_events(mbid, mb_event_puller, sl_event_puller, venue_mapper, start_date, end_date, seed_type="artist", slid=None, sl_page_limit=5):
+def get_mb_and_sl_events(mbid, mb_event_puller, sl_event_puller, venue_mapper, \
+  start_date, end_date, seed_type="artist", slid=None, sl_page_limit=5):
   """
-  Pull entity's events from MusicBrainz and Setlist.fm and attempt to merge events that occur in both,
-  return list of Event objects and summary text
+  Pull entity's events from MusicBrainz and Setlist.fm and attempt to merge events that occur 
+  in both, return list of Event objects and summary text
 
   Keyword arguments:
   mbid -- the MusicBrainz ID of the artist or venue for which to pull events
@@ -383,7 +387,7 @@ def get_mb_and_sl_events(mbid, mb_event_puller, sl_event_puller, venue_mapper, s
   venue_mapper -- instance of class VenueMapper
   start_date, end_date -- range of dates for events to return (type datetime.date)
   seed_type -- type of entity to pull events for ("artist" or "venue", default "artist")
-  slid -- the Setlist.fm ID of the venue for which to pull events, if seed_type is "venue" (default None)
+  slid -- Setlist.fm ID of the venue to pull events for, if seed_type is "venue" (default None)
   sl_page_limit -- maximum number of results pages to pull from Setlist.fm (default 5)
   """
   valid_mb_events = []
@@ -401,17 +405,20 @@ def get_mb_and_sl_events(mbid, mb_event_puller, sl_event_puller, venue_mapper, s
       if event.valid_date(start_date, end_date):
         if (len(event.artists) > 0) and not event.venue.is_empty():
           valid_mb_events.append(event)
-    message = "Retrieved {} MusicBrainz events between {} and {}. ".format(len(valid_mb_events), start_date, end_date)
+    message = "Retrieved {} MusicBrainz events between {} and {}. ".format(\
+      len(valid_mb_events), start_date, end_date)
 
   if sl_seed_id: 
     try:
-      sl_events = sl_event_puller.pull_events(seed_id=sl_seed_id, seed_type=seed_type, limit=sl_page_limit)
+      sl_events = sl_event_puller.pull_events(\
+        seed_id=sl_seed_id, seed_type=seed_type, limit=sl_page_limit)
       for sl_event in sl_events:
         event = Event()
         event.load_from_sl_event(sl_event)
         if event.valid_date(start_date, end_date):
           valid_sl_events.append(event)
-      message = message + "Retrieved {} Setlist events between {} and {},".format(len(valid_sl_events), start_date, end_date)
+      message = message + "Retrieved {} Setlist events between {} and {},".format(\
+        len(valid_sl_events), start_date, end_date)
       message = message + " limited to the {} most recent. ".format(sl_page_limit*20)
     except SetlistAPIError:
       message = message+"Setlist daily query limit reached, so no events pulled. "
@@ -448,7 +455,9 @@ def get_basic_artist_rec_from_df(df, query_id, with_geo=True, n_recs=10):
   grouped_df = df.groupby(['artist_mbid', 'artist_name']).agg({'venue_id':'nunique'})
   top_artists = grouped_df.sort_values(by=['venue_id'], ascending=False).head(n=n_recs)
   top_artists = top_artists.reset_index()
-  top_artists = top_artists.rename(columns={'artist_mbid':'id', 'artist_name':'Artist', 'venue_id':'Shared Venues'})
+  top_artists = top_artists.rename(columns={'artist_mbid':'id', 
+    'artist_name':'Artist', 
+    'venue_id':'Shared Venues'})
   if with_geo:
     top_artists['Origin'] = top_artists['artist_mbid'].apply(get_mb_artist_area)
     cols_to_return = ['id', 'Artist', 'Origin', 'Shared Venues']
@@ -456,3 +465,106 @@ def get_basic_artist_rec_from_df(df, query_id, with_geo=True, n_recs=10):
     cols_to_return = ['id', 'Artist', 'Shared Venues']
   top_artists = top_artists[cols_to_return]
   return top_artists
+
+def get_events_list(query_artist_events, mb_event_puller, sl_event_puller, venue_mapper, \
+  start_date, end_date, sl_page_limit):
+  """
+  For each event in input list, pull all events held at venue; return list of events in standardized
+  (flattened) form
+
+  Keyword arguments:
+  query_artist_events -- list of dictionary representations of events, expected to each have keys 
+  needed to convert to Event objects
+  mb_event_puller -- instance of MusicBrainzPuller class
+  sl_event_puller -- instance of class SetlistPuller
+  venue_mapper -- instance of class VenueMapper
+  start_date, end_date -- range of dates for events to return (type datetime.date)
+  sl_page_limit -- maximum number of results pages to pull from Setlist.fm
+  """
+  venue_event_dict = {}
+  all_events = []
+  for event_dict in query_artist_events:
+    event = Event()
+    event.from_dict(event_dict)
+    venue_id = not_none(event.venue.id['mbid'], event.venue.id['slid'])
+    if venue_mapper.has_id(venue_id):
+      event.set_venue(venue_mapper.get_venue(venue_id))
+    
+    venue_mbid = event.venue.id['mbid']
+    venue_slid = event.venue.id['slid']
+
+    new_events = []
+    new_key = (venue_mbid, venue_slid)
+    if new_key not in venue_event_dict:
+      new_events, message = get_mb_and_sl_events(venue_mbid, \
+        mb_event_puller, sl_event_puller, venue_mapper, \
+        start_date, end_date, seed_type="venue", slid=venue_slid, \
+        sl_page_limit=sl_page_limit)
+      venue_event_dict[new_key] = new_events
+      flattened_events = [x.flatten() for x in new_events]
+      all_events += flattened_events
+  all_events = [y for x in all_events for y in x]
+  return all_events
+
+
+def generate_artist_events_map(query_artist_events, query_mbid):
+  """
+  Create geographical plot of query artist events with lat/long data,
+  return plot object, number of events plotted, and text summarizing events not
+  plotted
+
+  Keyword arguments:
+  query_artist_events -- list of Event objects
+  query_mbid -- MBID of artist whose events we want to plot
+  """
+  std_events = [event.flatten() for event in query_artist_events]
+  std_events =  [y for x in std_events for y in x if \
+    y['artist_mbid'] == query_mbid]
+  mappable_events = [event for event in std_events if \
+    ('venue_lat' in event) or ('city_lat' in event)]
+  non_mappable_events = [event for event in std_events if \
+    event not in mappable_events]
+  
+  # All Setlist.fm venues should have city coords - 
+  # only MB venues would be non-mappable (so use venue_mbname)
+  non_mappable_text = ["{artist} @ {venue} ({date})".format(date=str(x['time']), \
+      artist=x['artist_name'], venue=x['venue_mbname']) for x in non_mappable_events]
+  non_mappable_text = "; ".join(non_mappable_text)
+
+  for event in mappable_events:
+      if event['venue_lat']: #not None
+          event['venue_name'] = event['venue_mbname']
+          event['coord_type'] = 'venue'
+          event['lat'] = event['venue_lat']
+          event['lon'] = event['venue_long']
+      else:
+          event['venue_name'] = event['venue_slname']
+          event['coord_type'] = 'city'
+          event['lat'] = event['city_lat']
+          event['lon'] = event['city_long']
+
+  if len(mappable_events) > 0:
+      df = pd.DataFrame(mappable_events)
+      df['text'] = df['artist_name'] + ' @ ' + df['venue_name'] + \
+          ' (' + df['time'].apply(lambda x: str(x)) + ')' + '<br>Mapped using '+\
+          df['coord_type'] + ' coordinates.'
+
+      df['venue_mbid'] = df['venue_mbid'].fillna('')
+      df['venue_slid'] = df['venue_slid'].fillna('')
+      df['venue_id'] = list(zip(df.venue_mbid, df.venue_slid))
+      df_grouped = df.groupby(['venue_name', 'venue_id', 'lat', 'lon'])
+      events_by_venue_text = df_grouped['text'].agg(lambda x:'<br>'.join(x))
+      events_by_venue = events_by_venue_text.reset_index()
+
+      fig = go.Figure(data=go.Scattergeo(
+          lon = events_by_venue['lon'],
+          lat = events_by_venue['lat'],
+          text = events_by_venue['text'],
+          customdata = events_by_venue[['venue_name', 'venue_id']].apply(tuple, axis=1),
+          mode = 'markers',
+          marker = dict(line=dict(width=1, color='DarkSlateGrey'))
+          ))
+      fig.update_geos(showcountries=True)
+      return fig, len(mappable_events), non_mappable_text
+  else:
+      return default_map_figure, 0, non_mappable_text

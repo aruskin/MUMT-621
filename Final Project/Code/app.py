@@ -55,83 +55,6 @@ def generate_table(dataframe, max_rows=10):
                         ])
         ]
 
-# Create geographical plot of query artist events with lat/long
-# Returns plot object, number of events plotted, text summarizing events not plotted
-def generate_artist_events_map(query_artist_events, query_mbid):
-    std_events = [event.flatten() for event in query_artist_events]
-    std_events =  [y for x in std_events for y in x if y['artist_mbid']==query_mbid]
-    mappable_events = [event for event in std_events if ('venue_lat' in event) or ('city_lat' in event)]
-    non_mappable_events = [event for event in std_events if event not in mappable_events]
-    
-    # All setlist venues should have city coordinates - only MB venues would be non-mappable
-    non_mappable_text = ["{artist} @ {venue} ({date})".format(date=str(x['time']), \
-        artist=x['artist_name'], venue=x['venue_mbname']) for x in non_mappable_events]
-    non_mappable_text = "; ".join(non_mappable_text)
-
-    for event in mappable_events:
-        if event['venue_lat']: #not None
-            event['venue_name'] = event['venue_mbname']
-            event['coord_type'] = 'venue'
-            event['lat'] = event['venue_lat']
-            event['lon'] = event['venue_long']
-        else:
-            event['venue_name'] = event['venue_slname']
-            event['coord_type'] = 'city'
-            event['lat'] = event['city_lat']
-            event['lon'] = event['city_long']
-
-    if len(mappable_events) > 0:
-        df = pd.DataFrame(mappable_events)
-        df['text'] = df['artist_name'] + ' @ ' + df['venue_name'] + \
-            ' (' + df['time'].apply(lambda x: str(x)) + ')' + '<br>Mapped using '+\
-            df['coord_type'] + ' coordinates.'
-
-        df['venue_mbid'] = df['venue_mbid'].fillna('')
-        df['venue_slid'] = df['venue_slid'].fillna('')
-        df['venue_id'] = list(zip(df.venue_mbid, df.venue_slid))
-        df_grouped = df.groupby(['venue_name', 'venue_id', 'lat', 'lon'])
-        events_by_venue_text = df_grouped['text'].agg(lambda x:'<br>'.join(x))
-        events_by_venue = events_by_venue_text.reset_index()
-
-        fig = go.Figure(data=go.Scattergeo(
-            lon = events_by_venue['lon'],
-            lat = events_by_venue['lat'],
-            text = events_by_venue['text'],
-            customdata = events_by_venue[['venue_name', 'venue_id']].apply(tuple, axis=1),
-            mode = 'markers',
-            marker = dict(line=dict(width=1, color='DarkSlateGrey'))
-            ))
-        fig.update_geos(showcountries=True)
-        return fig, len(mappable_events), non_mappable_text
-    else:
-        return default_map_figure, 0, non_mappable_text
-
-def get_events_list(query_artist_events):
-    venue_event_dict = {}
-    all_events = []
-    for event_dict in query_artist_events:
-        event = gen.Event()
-        event.from_dict(event_dict)
-        venue_id = gen.not_none(event.venue.id['mbid'], event.venue.id['slid'])
-        if VENUE_MAPPER.has_id(venue_id):
-          event.set_venue(VENUE_MAPPER.get_venue(venue_id))
-        
-        venue_mbid = event.venue.id['mbid']
-        venue_slid = event.venue.id['slid']
-
-        new_events = []
-        new_key = (venue_mbid, venue_slid)
-        if new_key not in venue_event_dict:
-          new_events, message = gen.get_mb_and_sl_events(venue_mbid, \
-            MB_EVENT_PULLER, SL_EVENT_PULLER, VENUE_MAPPER, \
-            START_DATE, END_DATE, seed_type="venue", slid=venue_slid, \
-            sl_page_limit=SL_VENUE_PAGE_LIMIT)
-          venue_event_dict[new_key] = new_events
-          flattened_events = [x.flatten() for x in new_events]
-          all_events += flattened_events
-    all_events = [y for x in all_events for y in x]
-    return all_events
-
 external_stylesheets = [dbc.themes.SKETCHY]
 
 # Empty map figure (note: no country borders)
@@ -317,7 +240,7 @@ def update_summary_text(mbid_submit, recs_submit, mbid_valid, mbid_entry):
             summary_text = message + " {} events were found at {} unique venues.".format(event_count, venue_count)
             serializable_events = [event.to_dict() for event in events]
             events_json = json.dumps(serializable_events, default=str)
-            map_plot, mappable_events, mappability_text = generate_artist_events_map(events, mbid_entry)
+            map_plot, mappable_events, mappability_text = gen.generate_artist_events_map(events, mbid_entry)
             mappability_message = "{} events mapped.".format(mappable_events)
             if mappable_events < event_count:
                 mappability_message = mappability_message +" No coordinates found for {}.".format(mappability_text)
@@ -340,12 +263,16 @@ def update_recs_output(events_json, mbid_entry, submit_clicks, recs_state_store)
     else: 
         ctx = dash.callback_context
         if ctx.triggered:
-            if (ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks") or ((ctx.triggered[0]['prop_id'] == "mbid-entry-store.children") and (mbid_entry != recs_state_store)):
+            if (ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks") or \
+                ((ctx.triggered[0]['prop_id'] == "mbid-entry-store.children") and \
+                (mbid_entry != recs_state_store)):
                 return "Clearing recs...", [{}], None, None, None
             elif (ctx.triggered[0]['prop_id'] == "query-venues-store.data"):
                 query_events_list = json.loads(events_json)
 
-                events_list = get_events_list(query_events_list)
+                events_list = gen.get_events_list(\
+                    query_events_list, MB_EVENT_PULLER, SL_EVENT_PULLER, VENUE_MAPPER, \
+                    START_DATE, END_DATE, SL_VENUE_PAGE_LIMIT)
                 if len(events_list) > 0:
                     events_df = pd.DataFrame(events_list)
                     recs = gen.get_basic_artist_rec_from_df(events_df, mbid_entry, with_geo=False)
