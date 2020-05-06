@@ -42,6 +42,9 @@ SL_VENUE_PAGE_LIMIT = 1
 
 REC_COLUMNS = ["Artist", "Shared Venues"]
 
+TOGGLE_ON = {'display': 'block'}
+TOGGLE_OFF = {'display': 'none'}
+
 external_stylesheets = [dbc.themes.SKETCHY]
 
 # Empty map figure (note: no country borders)
@@ -71,7 +74,7 @@ server = app.server
 secret_divs = [
         dcc.Store(id='mbid-entry-store'),
         dcc.Store(id='query-venues-store'),
-        html.Div(id='recs-state-store', style={'display': 'none'}),
+        html.Div(id='recs-state-store', style=TOGGLE_OFF),
         dcc.Store(id='venue-event-storage')
     ]
 
@@ -83,7 +86,7 @@ user_inputs = [
     # intialize artist dropdown as hidden display
     html.Div(id='artist-dropdown-container',
             children=[dcc.Dropdown(id='artist-dropdown', placeholder='Select artist')], 
-            style={'display': 'none'}),
+            style=TOGGLE_OFF),
     html.Div(id='mbid-message'),
     html.Br(),
     dbc.Button(id='get-recs-button', children='Find Related Artists', style={'display':'none'})
@@ -97,7 +100,7 @@ recs_output = html.Div(id='get-recs-container',
             columns=[{"name": i, "id": i} for i in REC_COLUMNS]), 
             align='center'))
     ],
-    style={'display': 'none'})
+    style=TOGGLE_OFF)
 
 card_body_style = {'maxHeight':'200px', 'overflowY':'scroll'}
 
@@ -193,9 +196,9 @@ def toggle_artist_dropdown(artist_options):
         raise PreventUpdate
     else:
         if len(artist_options) == 0:
-            return {'display': 'none'}
+            return TOGGLE_OFF
         else:
-            return {'display': 'block'}
+            return TOGGLE_ON
 
 # When user selects option from dropdown list, update hidden elements for storing
 # query MBID and toggle visibility of Find Related Artists button
@@ -208,13 +211,13 @@ def update_mbid_outputs(mbid_submit, artist_dropdown_selection, artist_dropdown_
     if ctx.triggered:
         # If user hits Submit button, clear out entry store and hide Find Related Artists button
         if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks":
-            return None, {'display': 'none'}
+            return None, TOGGLE_OFF
         else:
             selected = [x['label'] for x in artist_dropdown_options \
                 if x['value'] == artist_dropdown_selection]
             mbid_store_dict = dict(mbid=artist_dropdown_selection, name=selected[0])
             mbid_store_data = json.dumps(mbid_store_dict)
-            return mbid_store_data, {'display': 'block'}
+            return mbid_store_data, TOGGLE_ON
     else:
         raise PreventUpdate
 
@@ -226,9 +229,9 @@ def toggle_rec_area_visibility(mbid_submit, recs_submit):
     ctx = dash.callback_context
     if ctx.triggered:
         if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks":
-            return {'display': 'none'}
+            return TOGGLE_OFF
         else:
-            return {'display': 'block'}
+            return TOGGLE_ON
     else:
         raise PreventUpdate
 
