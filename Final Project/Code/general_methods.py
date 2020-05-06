@@ -139,6 +139,7 @@ class Event:
     self.type = None
     self.artists = []
     self.venue = Venue()
+    self.url = dict(mburl=None, slurl=None)
 
   def load_from_mb_event(self, mb_event):
     self.id['mbid'] = mb_event['id']
@@ -158,6 +159,7 @@ class Event:
         new_artist.load_from_mb_artist(artist_info)
         self.artists.append(new_artist)
     self.venue.load_from_mb_event(mb_event)
+    self.url['mburl'] = 'https://musicbrainz.org/event/'+mb_event['id']
 
   def load_from_sl_event(self, sl_event):
     self.id['slid'] = sl_event['id']
@@ -166,6 +168,7 @@ class Event:
     new_artist.load_from_sl_event(sl_event)
     self.artists.append(new_artist)
     self.venue.load_from_sl_event(sl_event)
+    self.url['slurl'] = sl_event['url']
 
   def from_dict(self, event_dict):
     self.id = event_dict['id']
@@ -176,6 +179,7 @@ class Event:
       new_artist = Artist()
       self.artists.append(new_artist.from_dict(artist))
     self.venue.from_dict(event_dict['venue'])
+    self.url = event_dict['url']
 
   def set_venue(self, new_venue):
     if isinstance(new_venue, Venue):
@@ -183,14 +187,16 @@ class Event:
 
   def to_dict(self):
     new_dict = dict(id=self.id, name=self.name, time=self.time, type=self.type, \
-      artists=[artist.to_dict() for artist in self.artists], venue=self.venue.to_dict())
+      artists=[artist.to_dict() for artist in self.artists], venue=self.venue.to_dict(),\
+      url=self.url)
     return new_dict
 
   # Convert to form that should be easy to then convert to DataFrame
   def flatten(self):
     flat_event = dict(event_mbid=self.id['mbid'], event_slid=self.id['slid'], \
       event_mbname=self.name['mbname'], event_slname=self.name['slname'], \
-      time=self.time, event_type=self.type)
+      time=self.time, event_type=self.type, event_mburl=self.url['mburl'],\
+      event_slurl=self.url['slurl'])
     flat_venue = self.venue.flatten()
     flat_events = []
     for artist in self.artists:
@@ -219,6 +225,8 @@ class Event:
       self.name['mbname'] = not_none(self.name['mbname'], other.name['mbname'])
       self.name['slname'] = not_none(self.name['slname'], other.name['slname'])
       self.type = not_none(self.type, other.type)
+      self.url['mburl'] = not_none(self.url['mburl'], other.url['mburl'])
+      self.url['slurl'] = not_none(self.url['slurl'], other.url['slurl'])
       if len(self.artists) < len(other.artists):
         self.artists = other.artists
       self.venue.merge_with(other.venue)
