@@ -530,6 +530,8 @@ def generate_artist_events_map(query_artist_events, query_mbid):
   std_events = [event.flatten() for event in query_artist_events]
   std_events =  [y for x in std_events for y in x if \
     y['artist_mbid'] == query_mbid]
+
+  query_artist_name = std_events[0]['artist_name']
   mappable_events = [event for event in std_events if \
     ('venue_lat' in event) or ('city_lat' in event)]
   non_mappable_events = [event for event in std_events if \
@@ -583,3 +585,32 @@ def generate_artist_events_map(query_artist_events, query_mbid):
       return fig, len(mappable_events), non_mappable_text
   else:
       return default_map_figure, 0, non_mappable_text
+
+def get_more_artist_info(mbid):
+  out_dict = dict(area=None, life_span=None, top_tags=[])
+  try:
+    mb_info = musicbrainzngs.get_artist_by_id(mbid, includes=['tags'])
+    mb_info = mb_info['artist']
+    if 'area' in mb_info:
+      out_dict['area'] = mb_info['area']['name']
+    if 'life-span' in mb_info:
+      life_span = mb_info['life-span']
+      begin = ''
+      end = ''
+      if 'begin' in life_span:
+        begin = life_span['begin']
+      if 'end' in life_span:
+        end = life_span['end']
+      out_dict['life_span'] = '{} - {}'.format(begin, end)
+    if 'tag-list' in mb_info:
+      tag_dicts = mb_info['tag-list']
+      sorted_tag_list = sorted(tag_dicts, key = lambda i: -int(i['count'])) 
+      sorted_tag_list = [x['name'] for x in sorted_tag_list] 
+      out_dict['top_tags'] = sorted_tag_list[:3]
+  except requests.HTTPError as err:
+    print("HTTPError: {0}".format(err))
+    pass
+  except musicbrainzngs.ResponseError as err:
+    print("ResponseError: {0}".format(err))
+    pass
+  return out_dict

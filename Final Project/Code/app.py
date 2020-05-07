@@ -402,9 +402,21 @@ def display_recommended_artist_info(mbid_submit, active_cell, events_list, recs_
             card_display_out = TOGGLE_ON
 
             if active_col_id == 'Artist':
-                card_text_out = 'Find out more about {}:'.format(cell_artist)
-                mb_link_text_out = 'MusicBrainz artist page'
-                mb_link_url_out = 'https://musicbrainz.org/artist/' + artist_mbid
+                artist_info = gen.get_more_artist_info(artist_mbid)
+                message = []
+                if artist_info['area']:
+                    message.append(html.P('Area: {}'.format(artist_info['area'])))
+                if artist_info['life_span']:
+                    message.append(html.P('Lifespan: {}'.format(artist_info['life_span'])))
+                if len(artist_info['top_tags']) > 0:
+                    message.append(html.P('Top tags on MusicBrainz: {}'.format(', '.join(artist_info['top_tags']))))
+                message.append(html.P(['Find out more at ', 
+                    html.A("{}'s MusicBrainz artist page".format(cell_artist),
+                        href='https://musicbrainz.org/artist/' + artist_mbid,
+                        target='_blank')]))
+                card_text_out = html.Div(message)
+                #mb_link_text_out = 'MusicBrainz artist page'
+                #mb_link_url_out = 'https://musicbrainz.org/artist/' + artist_mbid
                 return card_display_out, card_text_out, mb_link_text_out, mb_link_url_out
             else: #if active_col_id == 'Shared Venues' -- only other option
                 relevant_events = [event for event in events_list if \
