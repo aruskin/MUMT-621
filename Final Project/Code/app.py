@@ -96,6 +96,7 @@ recs_output = html.Div(id='get-recs-container',
     children=[
         dbc.Row(dbc.Spinner(html.Div(id='get-recs-spinner1'), color="primary")),
         dbc.Row(dbc.Spinner(html.Div(id='get-recs-spinner2'), color="secondary")),
+        dbc.Row(html.H3("Top 10 Artists by Number of Shared Venues")),
         dbc.Row([
             dbc.Col(dash_table.DataTable(id='recs-table', 
                 columns=[{"name": i, "id": i} for i in REC_COLUMNS]), 
@@ -106,7 +107,7 @@ recs_output = html.Div(id='get-recs-container',
     ],
     style=TOGGLE_OFF)
 
-card_body_style = {'maxHeight':'200px', 'overflowY':'scroll'}
+card_body_style = {'maxHeight':'150px', 'overflowY':'scroll'}
 
 summary_cards = [
     dbc.Col(dbc.Card([
@@ -152,7 +153,7 @@ app.layout = dbc.Container([
             dbc.Row(summary_cards),
             dbc.Row(map_component),
             dbc.Row([html.H3(id='venue-events-heading')]),
-            dbc.Row([dbc.Table(id='venue-events-table')], 
+            dbc.Row([dbc.Table(id='venue-events-table', striped=True, size='sm')], 
                 style={'maxHeight': '250px','overflowY':'scroll'})
             ], width=8)
         ])
