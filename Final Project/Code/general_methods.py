@@ -565,7 +565,7 @@ def generate_artist_events_map(query_artist_events, query_mbid):
       events_by_venue = events_by_venue_text.reset_index()
       events_by_venue['text'] = events_by_venue['text'] + '<br>Mapped using '+ \
         events_by_venue['coord_type'] + ' coordinates.' 
-
+        #LightSeaGreen
       fig = go.Figure(data=go.Scattergeo(
           lon = events_by_venue['lon'],
           lat = events_by_venue['lat'],
@@ -573,7 +573,8 @@ def generate_artist_events_map(query_artist_events, query_mbid):
           hoverinfo = 'text',
           customdata = events_by_venue[['venue_name', 'venue_id']].apply(tuple, axis=1),
           mode = 'markers',
-          marker = dict(line=dict(width=1, color='DarkSlateGrey'))
+          marker = dict(color="LightSeaGreen", size=8, opacity=0.6, symbol='star',
+            line=dict(width=2, color='DarkSlateGrey'))
           ), 
         layout=go.Layout(autosize=True, margin=go.layout.Margin(l=0, r=0, t=0, b=0),
           showlegend=False))
