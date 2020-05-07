@@ -88,8 +88,10 @@ class Venue:
     self.id['slid'] = sl_event['venue']['id']
     self.name['slname'] = sl_event['venue']['name']
     self.city['name'] = sl_event['venue']['city']['name']
-    self.city['coords'] = (sl_event['venue']['city']['coords']['lat'],\
-      sl_event['venue']['city']['coords']['long'])
+    # Most Setlist.fm venues should have city coords, but a few exceptions
+    if bool(sl_event['venue']['city']['coords']):
+      self.city['coords'] = (sl_event['venue']['city']['coords']['lat'],\
+        sl_event['venue']['city']['coords']['long'])
 
   def from_dict(self, venue_dict):
     self.id = venue_dict['id']
@@ -533,10 +535,9 @@ def generate_artist_events_map(query_artist_events, query_mbid):
   non_mappable_events = [event for event in std_events if \
     event not in mappable_events]
   
-  # All Setlist.fm venues should have city coords - 
-  # only MB venues would be non-mappable (so use venue_mbname)
   non_mappable_text = ["{artist} @ {venue} ({date})".format(date=str(x['time']), \
-      artist=x['artist_name'], venue=x['venue_mbname']) for x in non_mappable_events]
+      artist=x['artist_name'], venue=not_none(x['venue_mbname'], x['venue_slname'])) \
+      for x in non_mappable_events]
   non_mappable_text = "; ".join(non_mappable_text)
 
   for event in mappable_events:
