@@ -29,6 +29,10 @@
 -MusicBrainz events with no associated artists, venues, dates
 
 ## Mapping venues between sources
-- Venues with multiple incarnations in same city
-- Venue complexes
-- Festival stages
+- Multiple MusicBrainz venues could map to same Setlist.fm venue using the logic in `venue_mapping.py`. For example:
+	- [Metropolitan Opera House (1883-1966)](https://musicbrainz.org/place/364049a0-810c-45e4-80ee-666e6da8f76f) and [Metropolitan Opera House (1966-)](https://musicbrainz.org/place/0d6d636e-2e13-4655-a9d9-6dd3765f841d) both map to [the old incarnation of the venue in Setlist.fm](https://www.setlist.fm/venue/metropolitan-opera-house-new-york-ny-usa-4bd6cb0a.html). Even though the venue's location changed, the name and city coordinates haven't; would need some additional logic to do mapping to Setlist.fm venues correctly for this case.
+	- [Westfallenhalle 1 ](https://musicbrainz.org/place/bd6deeb3-b55f-400e-8569-c0847a40c1a4), [Westfallenhalle 2](https://musicbrainz.org/place/a3b38a39-b231-4d9b-b812-3cf939875956), [Westfallenhallen](https://musicbrainz.org/place/925286c2-18a6-419e-ac08-fd0c589ee70d) all map to [Westfallenhalle in Setlist.fm](https://www.setlist.fm/venue/westfalenhalle-dortmund-germany-73d61e71.html)
+- Tricky venues
+	- Venues with multiple incarnations in same city
+	- Venue complexes 
+	- Festival stages
