@@ -23,9 +23,9 @@
 - Setlist.fm has incorrect coordinates (latitude and longitude) for Worthy Farm (Glastonbury) - associates with Pilton, Barnstaple (Devon) rather than Pilton, Somerset
 	- More like this: for example, Leeds in Northern England given coordinates of Leeds (village) in Kent 
 - Apparently can't rely on Setlist.fm events to always have associated city and city coordinates, esp. with recent virtual concerts due to pandemic
-	- e.g., (this Zucchero concert)[https://www.setlist.fm/setlist/zucchero/2020/private-venue-unknown-city-italy-3b86c4f0.html]
+	- e.g., [this Zucchero concert](https://www.setlist.fm/setlist/zucchero/2020/private-venue-unknown-city-italy-3b86c4f0.html)
 - Some MBIDs associated with Setlist.fm artists no longer exist in MusicBrainz
-	- e.g., Future Punx (MBID abf8a9f4-ef46-4ec5-85fa-653d848dd057 on [Setlist artist page](https://www.setlist.fm/setlists/future-punx-6bc49ebe.html)), Lou-Adriane Cassidy (MBID b0de7c76-323b-43d7-9a57-2b61d870fb6c on [Setlist artist page](https://musicbrainz.org/artist/b0de7c76-323b-43d7-9a57-2b61d870fb6c, https://www.setlist.fm/setlists/lou-adriane-cassidy-2bf6d41e.html))
+	- e.g., Future Punx (MBID abf8a9f4-ef46-4ec5-85fa-653d848dd057 on [Setlist artist page](https://www.setlist.fm/setlists/future-punx-6bc49ebe.html)), Lou-Adriane Cassidy (MBID b0de7c76-323b-43d7-9a57-2b61d870fb6c on [Setlist artist page](https://www.setlist.fm/setlists/lou-adriane-cassidy-2bf6d41e.html))
 -MusicBrainz events with no associated artists, venues, dates
 
 ## Mapping venues between sources
