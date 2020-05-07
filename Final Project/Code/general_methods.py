@@ -540,6 +540,7 @@ def generate_artist_events_map(query_artist_events, query_mbid):
   non_mappable_text = "; ".join(non_mappable_text)
 
   for event in mappable_events:
+      event['url'] = not_none(event['event_slurl'], event['event_mburl'])
       if event['venue_lat']: #not None
           event['venue_name'] = event['venue_mbname']
           event['coord_type'] = 'venue'
@@ -547,22 +548,23 @@ def generate_artist_events_map(query_artist_events, query_mbid):
           event['lon'] = event['venue_long']
       else:
           event['venue_name'] = event['venue_slname']
-          event['coord_type'] = 'city'
+          event['coord_type'] = event['city_name']
           event['lat'] = event['city_lat']
           event['lon'] = event['city_long']
 
   if len(mappable_events) > 0:
       df = pd.DataFrame(mappable_events)
       df['text'] = df['artist_name'] + ' @ ' + df['venue_name'] + \
-          ' (' + df['time'].apply(lambda x: str(x)) + ')' + '<br>Mapped using '+\
-          df['coord_type'] + ' coordinates.'
+          ' (' + df['time'].apply(lambda x: str(x)) + ')'
 
       df['venue_mbid'] = df['venue_mbid'].fillna('')
       df['venue_slid'] = df['venue_slid'].fillna('')
       df['venue_id'] = list(zip(df.venue_mbid, df.venue_slid))
-      df_grouped = df.groupby(['venue_name', 'venue_id', 'lat', 'lon'])
+      df_grouped = df.groupby(['venue_name', 'venue_id', 'lat', 'lon', 'coord_type'])
       events_by_venue_text = df_grouped['text'].agg(lambda x:'<br>'.join(x))
       events_by_venue = events_by_venue_text.reset_index()
+      events_by_venue['text'] = events_by_venue['text'] + '<br>Mapped using '+ \
+        events_by_venue['coord_type'] + ' coordinates.' 
 
       fig = go.Figure(data=go.Scattergeo(
           lon = events_by_venue['lon'],
