@@ -409,16 +409,15 @@ def display_recommended_artist_info(mbid_submit, active_cell, events_list, recs_
             else: #if active_col_id == 'Shared Venues' -- only other option
                 relevant_events = [event for event in events_list if \
                     event['artist_mbid'] == artist_mbid]
-                event_text = ["[{venue} ({date})]({url})".format(\
-                    date=str(x['time']), venue=gen.not_none(x['venue_slname'], x['venue_mbname']),\
-                    url=gen.not_none(x['event_slurl'], x['event_mburl'])) \
+                event_text = [html.A("{venue} ({date}), ".format(date=str(x['time']), venue=gen.not_none(x['venue_slname'], x['venue_mbname'])),
+                    href=gen.not_none(x['event_slurl'], x['event_mburl']), target="_blank") \
                     for x in relevant_events]
                 message = '{} and {} have recently played at {} of the same venues.'.format(\
                     cell_artist, query_artist, shared_venues)
                 message = message + " {}'s events: ".format(cell_artist)
-                card_text_out = message + "; ".join(event_text)
+                card_text_out = html.P([message] + event_text)
                 
-            return card_display_out, dcc.Markdown(card_text_out), mb_link_text_out, mb_link_url_out
+            return card_display_out, card_text_out, mb_link_text_out, mb_link_url_out
 
 if __name__ == '__main__':
     app.run_server(debug=True)
