@@ -1,0 +1,1 @@
+Use these functions to generate mapping of MusicBrainz to Setlist.fm venues by venue name and coordinates which can then be saved as json file and loaded into VenueMapper object
