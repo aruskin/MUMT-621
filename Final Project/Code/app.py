@@ -60,7 +60,7 @@ def generate_table(dataframe, max_rows=10):
                             html.Tr([html.Th(col) for col in dataframe.columns])
                         ),
                         html.Tbody([
-                            html.Tr([html.Td(dcc.Markdown(dataframe.iloc[i][col])) for col in dataframe.columns])\
+                            html.Tr([html.Td(dataframe.iloc[i][col]) for col in dataframe.columns])\
                             for i in range(min(len(dataframe), max_rows))
                         ])
         ]
@@ -360,7 +360,7 @@ def update_venue_events_on_click(mbid_submit, selected_data, events_list):
                 events_df['event_date'] = events_df['time'].apply(lambda x:str(x))
                 events_df['link'] = list(zip(events_df.event_slurl.combine_first(events_df.event_mburl),\
                  events_df['event_slurl'].apply(lambda x: 'Setlist.fm page' if x else 'MusicBrainz page')))
-                events_df['Link to Event Page'] = events_df['link'].apply(lambda x: "[{}] ({})".format(x[1], x[0]))
+                events_df['Link to Event Page'] = events_df['link'].apply(lambda x: html.A(x[1], href=x[0], target='_blank'))
                 selected = events_df[events_df['venue_id'] == tuple(venue_id)]
                 events_table = generate_table(selected[['event_date', 'artist_name', 'Link to Event Page']], len(selected))
                 heading_text = 'Who else played {venue} between {start_date} and {end_date}?'.format(\
