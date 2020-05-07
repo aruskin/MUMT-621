@@ -8,8 +8,11 @@ To create a prototype of an artist recommendation system based on event and venu
 Music festivals and concerts with shared bills can provide attendees with the opportunity to discover new artists that they might not have found through existing recommendation systems. For example, Le Guess Who? is a Dutch music festival featuring international artists performing in different genres, and the festival’s website has a page for each artist with suggestions of other artists in the line-up that “You might also like”. The artist page for Shortparis (Russia) suggests that fans of the band may also want to see Los Pirañas (Colombia), Lalalar (Turkey), Italia 90 (UK) at the 2020 edition of the festival.[<sup>1</sup>](#1) In contrast, Spotify's "Related artists" for each of those bands all appear to be groups that perform in the same language (e.g., Russian for Shortparis[<sup>2</sup>](#2), Spanish for Los Pirañas[<sup>3</sup>](#3)). Spotify’s artist recommendations are “based on analysis of the Spotify community’s listening history.”[<sup>4</sup>](#4) It’s unclear how Le Guess Who? came up with their recommendations, but the results suggest that festival line-ups could be used to generate more geographically and linguistically diverse sets of recommendations. Venues and their past events could be seen as loose proxies for groups of users and their listening history, particularly for venues or festivals that tend to draw a certain type of act (e.g., metal bars, EDM festivals). The existence of crowdsourced databases of event data, such as Musicbrainz, Songkick, and Setlist.fm, with different scopes and levels of coverage should make it possible to aggregate festival line-ups and shared bills involving an artist of interest and automate the process of discovering new artists or local scenes from live events. 
 
 <a class="anchor" id="1"><sup>1</sup></a> https://www.leguesswho.nl/lineup/shortparis
+
 <a class="anchor" id="2"><sup>2</sup></a>: https://open.spotify.com/artist/61j4FFbKlzdYihMtpM1hZD/related
+
 <a class="anchor" id="3"><sup>3</sup></a>: https://open.spotify.com/artist/1TWdamQsAiOgB0szQsMSeq/related
+
 <a class="anchor" id="4"><sup>4</sup></a>: https://developer.spotify.com/documentation/web-api/reference/artists/get-related-artists/
 
 
@@ -21,14 +24,8 @@ Some recent papers have used musical event data to address various research ques
 
 ## Proposed deliverables (from highest to lowest priority)
 1. Interface that allows user to enter artist query and get back list of related artists
-	* Combine event data from APIs of multiple sources
-	* Rank artists based on similarity of events/venues played
 2. Interactive visualizations of artist/event/venue information
-	* Network-based (allow user to explore clusters, identify “scenes”)
-	* Map-based (show venues in geographical context)
 3. Analysis of different sources of event data 
-	* Compare metadata schemes
-	* Compare scope and coverage (try to identify differences by geography, genre, etc.)
 
 
 ## Partial Bibliography
