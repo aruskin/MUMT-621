@@ -12,7 +12,7 @@ Set up a folder and a [Python virtual environment](https://packaging.python.org/
 
 Set up a [Setlist.fm](https://www.setlist.fm/) account and apply for an API key
 
-Download `app.py`, `general_methods.py`, `requirements.txt`, and `venue_mapping.json` to the folder
+Download `app.py`, `general_methods.py`, `requirements.txt`, and `venue_mapping.json` from `Code` to the folder
 
 Create a file called `.config` in the folder with the following contents (replacing "whatever" with your Setlist.fm API key):
 
