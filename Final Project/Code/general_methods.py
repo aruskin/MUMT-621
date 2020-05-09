@@ -384,9 +384,14 @@ def merge_event_lists(events1, events2, venue_mapper):
           found_dupe = True
           ev2.merge_with(ev1) # update ev2 in place with values from ev1
           merged_count += 1
-          venue_mapper.add_venue(ev2.venue.id['mbid'], ev2.venue)
-          venue_mapper.add_venue(ev2.venue.id['slid'], ev2.venue)
+          v2_mbid = ev2.venue.id['mbid']
+          v2_slid = ev2.venue.id['slid']
+          # Existing venue mappings take priority
+          if (not venue_mapper.has_id(v2_mbid)) or (not venue_mapper.has_id(v2_slid)):
+            venue_mapper.add_venue(ev2.venue.id['mbid'], ev2.venue)
+            venue_mapper.add_venue(ev2.venue.id['slid'], ev2.venue)
       if not found_dupe:
+        v1_id = not_none(ev1.venue.id['mbid'], ev1.venue.id['slid'])
         filtered_events1.append(ev1)
     print("Merged {} events".format(merged_count))
     return filtered_events1 + events2
@@ -394,8 +399,8 @@ def merge_event_lists(events1, events2, venue_mapper):
 def get_mb_and_sl_events(mbid, mb_event_puller, sl_event_puller, venue_mapper, \
   start_date, end_date, seed_type="artist", slid=None, sl_page_limit=5):
   """
-  Pull entity's events from MusicBrainz and Setlist.fm and attempt to merge events that occur 
-  in both, return list of Event objects and summary text
+  Pull entity's events from MusicBrainz and Setlist.fm and apply venue mappings when applicable. 
+  Attempt to merge events that occur in both, return list of Event objects and summary text
 
   Keyword arguments:
   mbid -- the MusicBrainz ID of the artist or venue for which to pull events
@@ -421,6 +426,8 @@ def get_mb_and_sl_events(mbid, mb_event_puller, sl_event_puller, venue_mapper, \
       event.load_from_mb_event(mb_event)
       if event.valid_date(start_date, end_date):
         if (len(event.artists) > 0) and not event.venue.is_empty():
+          if venue_mapper.has_id(event.venue.id['mbid']):
+            event.set_venue(venue_mapper.get_venue(event.venue.id['mbid']))
           valid_mb_events.append(event)
     message = "Retrieved {} MusicBrainz events between {} and {}. ".format(\
       len(valid_mb_events), start_date, end_date)
@@ -433,6 +440,8 @@ def get_mb_and_sl_events(mbid, mb_event_puller, sl_event_puller, venue_mapper, \
         event = Event()
         event.load_from_sl_event(sl_event)
         if event.valid_date(start_date, end_date):
+          if venue_mapper.has_id(event.venue.id['slid']):
+            event.set_venue(venue_mapper.get_venue(event.venue.id['slid']))
           valid_sl_events.append(event)
       message = message + "Retrieved {} Setlist events between {} and {},".format(\
         len(valid_sl_events), start_date, end_date)
