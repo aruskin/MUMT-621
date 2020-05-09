@@ -113,10 +113,6 @@ summary_cards = [
     dbc.Col(dbc.Card([
                 dbc.CardHeader("Summary"), 
                 dbc.CardBody(id='query-events-text', style=card_body_style)
-        ])),
-    dbc.Col(dbc.Card([
-                dbc.CardHeader("Mappability"), 
-                dbc.CardBody(id='query-map-text', style=card_body_style)
         ]))
     ]
 
@@ -252,7 +248,7 @@ def toggle_rec_area_visibility(mbid_submit, recs_submit):
 @app.callback(
     [Output('get-recs-spinner1', 'children'), 
     Output('query-venues-store', 'data'), Output('query-events-text', 'children'), 
-    Output('query-map-text', 'children'), Output('artist-venue-map', 'figure')],
+    Output('artist-venue-map', 'figure')],
     [Input('mbid-submit-button', 'n_clicks'), Input('get-recs-button', 'n_clicks')],
     [State('mbid-entry-store', 'data')]
 )
@@ -260,7 +256,7 @@ def update_summary_text(mbid_submit, recs_submit, mbid_entry_store):
     ctx = dash.callback_context
     if ctx.triggered:
         if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks":
-            return None, None, None, None, default_map_figure
+            return None, None, None, default_map_figure
         else:
             mbid_entry_dict = json.loads(mbid_entry_store)
             mbid_entry = mbid_entry_dict['mbid']
@@ -288,7 +284,8 @@ def update_summary_text(mbid_submit, recs_submit, mbid_entry_store):
             mappability_message = "{} events mapped.".format(mappable_events)
             if mappable_events < event_count:
                 mappability_message = mappability_message +" No coordinates found for {}.".format(mappability_text)
-            return "Pulled events for {}".format(artist_name), events_json, summary_text, mappability_message, map_plot
+            card_text_out = html.P([summary_text, html.Hr(), mappability_message])
+            return "Pulled events for {}".format(artist_name), events_json, card_text_out, map_plot
     else:
         raise PreventUpdate 
 
