@@ -122,8 +122,7 @@ summary_cards = [
 
 more_info_card = [dbc.Card([
                     dbc.CardHeader("More info about recommendations"), 
-                    dbc.CardBody(id='rec-select-text', style=card_body_style), 
-                    dbc.CardLink(id='rec-select-mb-link')],
+                    dbc.CardBody(id='rec-select-text', style=card_body_style)],
                 id='more-info-card',
                 style=TOGGLE_OFF)]
 
@@ -378,9 +377,7 @@ def update_venue_events_on_click(mbid_submit, selected_data, events_list):
                     venue=venue_name, start_date=START_DATE, end_date=END_DATE)
                 return events_table, heading_text
 
-@app.callback([Output('more-info-card', 'style'), 
-    Output('rec-select-text', 'children'), 
-    Output('rec-select-mb-link', 'children'), Output('rec-select-mb-link', 'href')],
+@app.callback([Output('more-info-card', 'style'), Output('rec-select-text', 'children')],
     [Input('mbid-submit-button', 'n_clicks'), Input('recs-table', 'active_cell')],
     [State('venue-event-storage', 'data'), State('recs-table', 'data'), 
     State('mbid-entry-store', 'data')])
@@ -388,17 +385,15 @@ def display_recommended_artist_info(mbid_submit, active_cell, events_list, recs_
     ctx = dash.callback_context
     card_display_out = TOGGLE_OFF
     card_text_out = ""
-    mb_link_text_out = ""
-    mb_link_url_out = ""
     if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks": #hide and clear on Submit
-        return card_display_out, card_text_out, mb_link_text_out, mb_link_url_out
+        return card_display_out, card_text_out
     else:
         if active_cell is None:
             raise PreventUpdate
         elif 'row_id' not in active_cell: #selecting cell in empty table
-            return card_display_out, card_text_out, mb_link_text_out, mb_link_url_out
+            return card_display_out, card_text_out
         elif active_cell['row_id'] is None:
-            return card_display_out, card_text_out, mb_link_text_out, mb_link_url_out
+            return card_display_out, card_text_out
         else:
             active_row_id = active_cell['row_id']
             active_col_id = active_cell['column_id']
@@ -426,7 +421,7 @@ def display_recommended_artist_info(mbid_submit, active_cell, events_list, recs_
                         href='https://musicbrainz.org/artist/' + artist_mbid,
                         target='_blank')]))
                 card_text_out = html.Div(message)
-                return card_display_out, card_text_out, mb_link_text_out, mb_link_url_out
+                return card_display_out, card_text_out
             else: #if active_col_id == 'Shared Venues' -- only other option
                 relevant_events = [event for event in events_list if \
                     event['artist_mbid'] == artist_mbid]
@@ -438,7 +433,7 @@ def display_recommended_artist_info(mbid_submit, active_cell, events_list, recs_
                 message = message + " {}'s events: ".format(cell_artist)
                 card_text_out = html.P([message] + event_text)
                 
-            return card_display_out, card_text_out, mb_link_text_out, mb_link_url_out
+            return card_display_out, card_text_out
 
 if __name__ == '__main__':
     app.run_server(debug=True)
