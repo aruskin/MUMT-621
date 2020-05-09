@@ -264,18 +264,22 @@ def update_summary_text(mbid_submit, recs_submit, mbid_entry_store):
                 MB_EVENT_PULLER, SL_EVENT_PULLER, VENUE_MAPPER,\
                 START_DATE, END_DATE, sl_page_limit=SL_ARTIST_PAGE_LIMIT)
             event_count = len(events)
-            venue_list = []
             venue_count = 0
+            mappable_events = 0
+            events_json = json.dumps([])
+            map_plot = default_map_figure
 
-            for event in events:
-                if event.venue not in venue_list:
-                    venue_list.append(event.venue)
-                    venue_count += 1
+            if event_count > 0:
+                venue_list = []
+                for event in events:
+                    if event.venue not in venue_list:
+                        venue_list.append(event.venue)
+                        venue_count += 1
+                serializable_events = [event.to_dict() for event in events]
+                events_json = json.dumps(serializable_events, default=str)
+                map_plot, mappable_events, mappability_text = gen.generate_artist_events_map(events, mbid_entry)
             summary_text = message + " {} events were found at {} unique venues.".format(\
-                event_count, venue_count)
-            serializable_events = [event.to_dict() for event in events]
-            events_json = json.dumps(serializable_events, default=str)
-            map_plot, mappable_events, mappability_text = gen.generate_artist_events_map(events, mbid_entry)
+                    event_count, venue_count)
             mappability_message = "{} events mapped.".format(mappable_events)
             if mappable_events < event_count:
                 mappability_message = mappability_message +" No coordinates found for {}.".format(mappability_text)
@@ -321,10 +325,10 @@ def update_recs_output(events_json, mbid_entry_store, submit_clicks, recs_state_
                 events_df = pd.DataFrame(events_list)
                 recs = gen.get_basic_artist_rec_from_df(events_df, mbid_entry, with_geo=False)
                 recs_table = recs.to_dict('records')
-                message = "Got recs for {}".format(artist_name)
+                message = "Got recommendations for {}".format(artist_name)
                 toggle = TOGGLE_ON
             else:
-                message = "No events found for {} between {} and {}".format(\
+                message = "No events found for {} between {} and {}, so no recommendations.".format(\
                     artist_name, START_DATE, END_DATE)
                 recs_table = [{}]
                 toggle = TOGGLE_OFF
@@ -332,6 +336,7 @@ def update_recs_output(events_json, mbid_entry_store, submit_clicks, recs_state_
         elif (trigger == "mbid-entry-store.data") and (mbid_entry == recs_state_store):
             raise PreventUpdate
         else:
+            #print("here?: {}".format(ctx.triggered[0]['prop_id']))
             message = ""
             return message, [{}], deactivated_cell, [], None, None, TOGGLE_OFF
     else:
