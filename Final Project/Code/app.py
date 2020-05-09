@@ -117,14 +117,15 @@ summary_cards = [
     dbc.Col(dbc.Card([
                 dbc.CardHeader("Mappability"), 
                 dbc.CardBody(id='query-map-text', style=card_body_style)
-        ])),
-    dbc.Col(dbc.Card([
-                dbc.CardHeader("More info about recommendations"), 
-                dbc.CardBody(id='rec-select-text', style=card_body_style), 
-                dbc.CardLink(id='rec-select-mb-link')],
-            id='more-info-card',
-            style=TOGGLE_OFF))
+        ]))
     ]
+
+more_info_card = [dbc.Card([
+                    dbc.CardHeader("More info about recommendations"), 
+                    dbc.CardBody(id='rec-select-text', style=card_body_style), 
+                    dbc.CardLink(id='rec-select-mb-link')],
+                id='more-info-card',
+                style=TOGGLE_OFF)]
 
 map_component = [
     dbc.Col([dcc.Graph(id='artist-venue-map', figure=default_map_figure, 
@@ -146,7 +147,8 @@ app.layout = dbc.Container([
         # 1st column: User input stuff & recs output table
         dbc.Col([
             dbc.Row(dbc.Col(user_inputs)),
-            dbc.Row(dbc.Col(recs_output))
+            dbc.Row(dbc.Col(recs_output)),
+            dbc.Row(dbc.Col(more_info_card))
         ], width=4),
         # 2nd column: summary of info about query artist & map
         dbc.Col([
@@ -228,6 +230,8 @@ def update_mbid_outputs(mbid_submit, artist_dropdown_selection, artist_dropdown_
     else:
         raise PreventUpdate
 
+# Toggling visibility of section with spinners and recommendation table - hide when Submit button 
+# clicked, show when Find Related Artists button clicked
 @app.callback(
     Output('get-recs-container', 'style'),
     [Input('mbid-submit-button', 'n_clicks'), Input('get-recs-button', 'n_clicks')]
@@ -242,8 +246,10 @@ def toggle_rec_area_visibility(mbid_submit, recs_submit):
     else:
         raise PreventUpdate
 
-
-# Do first part of event pull - get events for query artist, update cards with summaries
+# Updating top spinner, data store for query artist events list, summaries of initial event pull and
+# mappability, and points to plot on map
+# Add data when events pulled (Find Related Artists button clicked), 
+# clear data when user searches for new artist (Submit button clicked)
 @app.callback(
     [Output('get-recs-spinner1', 'children'), 
     Output('query-venues-store', 'data'), Output('query-events-text', 'children'), 
@@ -420,8 +426,6 @@ def display_recommended_artist_info(mbid_submit, active_cell, events_list, recs_
                         href='https://musicbrainz.org/artist/' + artist_mbid,
                         target='_blank')]))
                 card_text_out = html.Div(message)
-                #mb_link_text_out = 'MusicBrainz artist page'
-                #mb_link_url_out = 'https://musicbrainz.org/artist/' + artist_mbid
                 return card_display_out, card_text_out, mb_link_text_out, mb_link_url_out
             else: #if active_col_id == 'Shared Venues' -- only other option
                 relevant_events = [event for event in events_list if \
