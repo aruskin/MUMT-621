@@ -164,7 +164,8 @@ app.layout = dbc.Container([
 # Display artist name and disambiguation (when available), and store associated
 # MBID as value for dropdown options
 @app.callback(
-    [Output('mbid-message', 'children'), Output('artist-dropdown', 'options')],
+    [Output('mbid-message', 'children'), Output('artist-dropdown', 'options'),
+    Output('artist-dropdown', 'value')],
     [Input('mbid-submit-button', 'n_clicks')],
     [State('artist-input', 'value')])
 def update_artist_dropdown(n_clicks, artist_input_value):
@@ -173,13 +174,13 @@ def update_artist_dropdown(n_clicks, artist_input_value):
     else:
         if artist_input_value == "":
             message = "Please enter an artist name"
-            return message, []
+            return message, [], None
         else:
             try:
                 result = musicbrainzngs.search_artists(artist=artist_input_value)
             except musicbrainzngs.WebServiceError as exc:
                 message = "Something went wrong with the request: %s" % exc
-                return message, []
+                return message, [], None
             else:
                 options = []
                 num_artists = result['artist-count']
@@ -190,7 +191,7 @@ def update_artist_dropdown(n_clicks, artist_input_value):
                         artist_name = artist['name']
                     options += [{'label': artist_name, 'value': artist['id']}]
                 message = "Found {} artists".format(num_artists)
-                return message, options
+                return message, options, None
 
 # Only show artist dropdown list if/when candidate arists found
 @app.callback(Output('artist-dropdown-container', 'style'),
@@ -217,11 +218,14 @@ def update_mbid_outputs(mbid_submit, artist_dropdown_selection, artist_dropdown_
         if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks":
             return None, TOGGLE_OFF
         else:
-            selected = [x['label'] for x in artist_dropdown_options \
-                if x['value'] == artist_dropdown_selection]
-            mbid_store_dict = dict(mbid=artist_dropdown_selection, name=selected[0])
-            mbid_store_data = json.dumps(mbid_store_dict)
-            return mbid_store_data, TOGGLE_ON
+            if artist_dropdown_selection is None:
+                return None, TOGGLE_OFF
+            else:
+                selected = [x['label'] for x in artist_dropdown_options \
+                    if x['value'] == artist_dropdown_selection]
+                mbid_store_dict = dict(mbid=artist_dropdown_selection, name=selected[0])
+                mbid_store_data = json.dumps(mbid_store_dict)
+                return mbid_store_data, TOGGLE_ON
     else:
         raise PreventUpdate
 
