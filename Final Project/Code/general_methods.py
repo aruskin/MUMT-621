@@ -277,6 +277,9 @@ class VenueMapper:
 class SetlistAPIError(Exception):
     pass
 
+class SetlistNotFoundError(Exception):
+  pass
+
 #####################
 
 class SetlistPuller:
@@ -289,18 +292,24 @@ class SetlistPuller:
     headers = {'Accept': 'application/json', 'x-api-key': self.api_key}
     results = requests.get(request, headers=headers)
     json_results = results.json()
+    if 'code' in json_results:
+      if json_results['code'] == 404:
+        raise SetlistNotFoundError
     return json_results
 
   def pull_until_success(self, seed_id, seed_type, page, check_key, limit=10):
-    page_results = self.pull_page(seed_id, seed_type, page)
-    attempts = 1
-    while (check_key not in page_results.keys()) and (attempts < limit):
-      time.sleep(1)
-      page_results = self.pull_page(seed_id, seed_type, page)
-      attempts += 1
-    if check_key in page_results.keys():
-      return page_results
-    raise SetlistAPIError
+    try:
+      page_results = self.pull_page(seed_id, seed_type, page) 
+      attempts = 1
+      while (check_key not in page_results.keys()) and (attempts < limit):
+          time.sleep(1)
+          page_results = self.pull_page(seed_id, seed_type, page)
+          attempts += 1
+      if check_key in page_results.keys():
+        return page_results
+    except SetlistNotFoundError:
+      raise
+    raise SetlistAPIError("Too many attempts")
 
   def pull_events(self, seed_id, seed_type, limit=5):
     page = 1
@@ -317,6 +326,9 @@ class SetlistPuller:
     except SetlistAPIError:
       print('Could not pull Setlist.fm events')
       raise
+    except SetlistNotFoundError:
+      print('No Setlist.fm events found')
+      return []
 
 #####################
 
@@ -426,7 +438,7 @@ def get_mb_and_sl_events(mbid, mb_event_puller, sl_event_puller, venue_mapper, \
         len(valid_sl_events), start_date, end_date)
       message = message + " limited to the {} most recent. ".format(sl_page_limit*20)
     except SetlistAPIError:
-      message = message+"Setlist daily query limit reached, so no events pulled. "
+      message = message + "Setlist daily query limit reached, so no events pulled. "
       print("Issue pulling Setlist events - will use MusicBrainz only")
       pass
   print("Retrieved {} MB events, {} SL events".format(len(valid_mb_events), len(valid_sl_events)))
@@ -449,7 +461,7 @@ def get_basic_artist_rec_from_df(df, query_id, with_geo=True, n_recs=10):
   Generate DataFrame of artists in the event dataset that have performed at the most (unique) venues
 
   Keyword arguments:
-  df -- pandas DataFrame of events for venues at which query artist has performed
+  df -- pandas DataFrame of events for venues at which query artist has performed; assume non-empty
   query_id -- MBID of query artist (ensures that query artist not in list of recommendations)
   with_geo -- whether to return geographic information about the recommended artists (default True)
   n_recs -- number of recommended artists to return (default 10)
