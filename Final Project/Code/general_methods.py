@@ -445,25 +445,13 @@ def get_mb_and_sl_events(mbid, mb_event_puller, sl_event_puller, venue_mapper, \
   valid_events = merge_event_lists(valid_mb_events, valid_sl_events, venue_mapper)
   return valid_events, message
 
-
-def get_mb_artist_area(mbid):
-  """Pull basic artist area information from MusicBrainz, if it exists"""
-  mb_info = musicbrainzngs.get_artist_by_id(mbid)
-  mb_info = mb_info['artist']
-  if 'area' in mb_info.keys():
-    area = mb_info['area']['name']
-  else:
-    area = 'N/A'
-  return area
-
-def get_basic_artist_rec_from_df(df, query_id, with_geo=True, n_recs=10):
+def get_basic_artist_rec_from_df(df, query_id, n_recs=10):
   """
   Generate DataFrame of artists in the event dataset that have performed at the most (unique) venues
 
   Keyword arguments:
   df -- pandas DataFrame of events for venues at which query artist has performed; assume non-empty
   query_id -- MBID of query artist (ensures that query artist not in list of recommendations)
-  with_geo -- whether to return geographic information about the recommended artists (default True)
   n_recs -- number of recommended artists to return (default 10)
 
   """
@@ -475,11 +463,7 @@ def get_basic_artist_rec_from_df(df, query_id, with_geo=True, n_recs=10):
   top_artists = top_artists.rename(columns={'artist_mbid':'id', 
     'artist_name':'Artist', 
     'venue_id':'Shared Venues'})
-  if with_geo:
-    top_artists['Origin'] = top_artists['artist_mbid'].apply(get_mb_artist_area)
-    cols_to_return = ['id', 'Artist', 'Origin', 'Shared Venues']
-  else:
-    cols_to_return = ['id', 'Artist', 'Shared Venues']
+  cols_to_return = ['id', 'Artist', 'Shared Venues']
   top_artists = top_artists[cols_to_return]
   return top_artists
 

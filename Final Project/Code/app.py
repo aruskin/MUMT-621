@@ -329,7 +329,7 @@ def update_recs_output(events_json, mbid_entry_store, submit_clicks, recs_state_
                 START_DATE, END_DATE, SL_VENUE_PAGE_LIMIT)
             if len(events_list) > 0:
                 events_df = pd.DataFrame(events_list)
-                recs = gen.get_basic_artist_rec_from_df(events_df, mbid_entry, with_geo=False)
+                recs = gen.get_basic_artist_rec_from_df(events_df, mbid_entry)
                 recs_table = recs.to_dict('records')
                 message = "Got recommendations for {}".format(artist_name)
                 toggle = TOGGLE_ON
