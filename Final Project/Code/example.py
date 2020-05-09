@@ -6,6 +6,7 @@ import argparse
 import pandas as pd
 import configparser
 import json
+import datetime
 
 START_DATE = datetime.date(2015, 1, 1)
 END_DATE = datetime.date.today()
@@ -49,11 +50,13 @@ def main():
       flattened_events = [x.flatten() for x in new_events]
       all_events += flattened_events
 
-  venue_mapper.dump_json('venue_mapping_mod.json')
   all_events = [y for x in all_events for y in x]
 
   events_df = pd.DataFrame(all_events)
-  print(gen.get_basic_artist_rec_from_df(events_df, test_mbid, with_geo=False))
+  if len(events_df) > 0:
+    print(gen.get_basic_artist_rec_from_df(events_df, test_mbid, with_geo=False))
+  else:
+    print("No events found, so no recommendations generated")
 
 if __name__ == "__main__":
   main()
