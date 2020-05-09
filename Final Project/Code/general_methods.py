@@ -136,7 +136,6 @@ class Venue:
 class Event:
   def __init__(self):
     self.id = dict(mbid=None, slid=None)
-    self.name = dict(mbname=None, slname=None)
     self.time = None
     self.type = None
     self.artists = []
@@ -145,7 +144,6 @@ class Event:
 
   def load_from_mb_event(self, mb_event):
     self.id['mbid'] = mb_event['id']
-    self.name['mbname'] = mb_event['name']
     if 'life-span' in mb_event.keys():
       for fmt in ('%Y-%m-%d', '%Y-%m', '%Y'):
           try:
@@ -174,7 +172,6 @@ class Event:
 
   def from_dict(self, event_dict):
     self.id = event_dict['id']
-    self.name = event_dict['name']
     self.time = event_dict['time']
     self.type = event_dict['type']
     for artist in event_dict['artists']:
@@ -188,7 +185,8 @@ class Event:
       self.venue = new_venue
 
   def to_dict(self):
-    new_dict = dict(id=self.id, name=self.name, time=self.time, type=self.type, \
+    new_dict = dict(id=self.id,\
+      time=self.time, type=self.type, \
       artists=[artist.to_dict() for artist in self.artists], venue=self.venue.to_dict(),\
       url=self.url)
     return new_dict
@@ -196,7 +194,6 @@ class Event:
   # Convert to form that should be easy to then convert to DataFrame
   def flatten(self):
     flat_event = dict(event_mbid=self.id['mbid'], event_slid=self.id['slid'], \
-      event_mbname=self.name['mbname'], event_slname=self.name['slname'], \
       time=self.time, event_type=self.type, event_mburl=self.url['mburl'],\
       event_slurl=self.url['slurl'])
     flat_venue = self.venue.flatten()
@@ -224,8 +221,6 @@ class Event:
     #if self.same_event(other):
       self.id['mbid'] = not_none(self.id['mbid'], other.id['mbid'])
       self.id['slid'] = not_none(self.id['slid'], other.id['slid'])
-      self.name['mbname'] = not_none(self.name['mbname'], other.name['mbname'])
-      self.name['slname'] = not_none(self.name['slname'], other.name['slname'])
       self.type = not_none(self.type, other.type)
       self.url['mburl'] = not_none(self.url['mburl'], other.url['mburl'])
       self.url['slurl'] = not_none(self.url['slurl'], other.url['slurl'])
