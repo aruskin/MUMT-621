@@ -245,6 +245,18 @@ def toggle_rec_area_visibility(mbid_submit, recs_submit):
     else:
         raise PreventUpdate
 
+
+@app.callback(
+    Output('artist-venue-map', 'clickData'),
+    [Input('get-recs-button', 'n_clicks'), Input('mbid-submit-button', 'n_clicks')]
+    )
+def clear_map_click_data(recs_submit, mbid_submit):
+    if recs_submit is None: 
+        raise PreventUpdate
+    else:
+        click_data_out = {'points':[], 'customdata':[]}
+        return click_data_out
+
 # Updating top spinner, data store for query artist events list, summaries of initial event pull and
 # mappability, and points to plot on map
 # Add data when events pulled (Find Related Artists button clicked), 
@@ -253,26 +265,32 @@ def toggle_rec_area_visibility(mbid_submit, recs_submit):
     [Output('get-recs-spinner1', 'children'), 
     Output('query-venues-store', 'data'), Output('query-events-text', 'children'), 
     Output('artist-venue-map', 'figure')],
-    [Input('mbid-submit-button', 'n_clicks'), Input('get-recs-button', 'n_clicks')],
-    [State('mbid-entry-store', 'data')]
+    [Input('get-recs-button', 'n_clicks')],
+    [State('mbid-entry-store', 'data'), State('recs-state-store', 'children')]
 )
-def update_summary_text(mbid_submit, recs_submit, mbid_entry_store):
-    ctx = dash.callback_context
-    if ctx.triggered:
-        if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks":
-            return None, None, None, default_map_figure
+def update_summary_text(recs_submit, mbid_entry_store, old_recs_state_store):
+    if recs_submit is None:
+        raise PreventUpdate
+    else:
+        spinner_out = ""
+        query_events_data = json.dumps([])
+        card_text_out = ""
+        map_plot_out = default_map_figure
+
+        mbid_entry_dict = json.loads(mbid_entry_store)
+        mbid_entry = mbid_entry_dict['mbid']
+        artist_name = mbid_entry_dict['name']
+
+        if mbid_entry == old_recs_state_store:
+            # user has hit Find Related Artist again button without changing query artist
+            raise PreventUpdate
         else:
-            mbid_entry_dict = json.loads(mbid_entry_store)
-            mbid_entry = mbid_entry_dict['mbid']
-            artist_name = mbid_entry_dict['name']
             events, message = gen.get_mb_and_sl_events(mbid_entry, \
                 MB_EVENT_PULLER, SL_EVENT_PULLER, VENUE_MAPPER,\
                 START_DATE, END_DATE, sl_page_limit=SL_ARTIST_PAGE_LIMIT)
             event_count = len(events)
             venue_count = 0
             mappable_events = 0
-            events_json = json.dumps([])
-            map_plot = default_map_figure
 
             if event_count > 0:
                 venue_list = []
@@ -281,17 +299,18 @@ def update_summary_text(mbid_submit, recs_submit, mbid_entry_store):
                         venue_list.append(event.venue)
                         venue_count += 1
                 serializable_events = [event.to_dict() for event in events]
-                events_json = json.dumps(serializable_events, default=str)
-                map_plot, mappable_events, mappability_text = gen.generate_artist_events_map(events, mbid_entry)
+                query_events_data  = json.dumps(serializable_events, default=str)
+                map_plot_out, mappable_events, mappability_text = gen.generate_artist_events_map(events, mbid_entry)
             summary_text = message + " {} events were found at {} unique venues.".format(\
                     event_count, venue_count)
             mappability_message = "{} events mapped.".format(mappable_events)
             if mappable_events < event_count:
                 mappability_message = mappability_message +" No coordinates found for {}.".format(mappability_text)
             card_text_out = html.P([summary_text, html.Hr(), mappability_message])
-            return "Pulled events for {}".format(artist_name), events_json, card_text_out, map_plot
-    else:
-        raise PreventUpdate 
+
+            spinner_out = "Pulled events for {}".format(artist_name)
+                
+        return spinner_out, query_events_data, card_text_out, map_plot_out#, click_data_out
 
 # When user hits "Find Related Artists", generate list of recommendations based on
 # query artist (need to have a valid MBID stored) and display in table
@@ -300,11 +319,10 @@ def update_summary_text(mbid_submit, recs_submit, mbid_entry_store):
     Output('recs-table', 'data'), Output('recs-table', 'active_cell'), Output('recs-table', 'selected_cells'),
     Output('recs-state-store', 'children'), Output('venue-event-storage', 'data'),
     Output('map-tooltip', 'style')],
-    [Input('query-venues-store', 'data'), Input('mbid-entry-store', 'data'), 
-    Input('mbid-submit-button', 'n_clicks')],
-    [State('recs-state-store', 'children'), State('recs-table', 'active_cell'), State('recs-table', 'selected_cells')]
+    [Input('query-venues-store', 'data'), Input('mbid-submit-button', 'n_clicks')],
+    [State('mbid-entry-store', 'data'), State('recs-state-store', 'children'), State('recs-table', 'active_cell'), State('recs-table', 'selected_cells')]
     )
-def update_recs_output(events_json, mbid_entry_store, submit_clicks, recs_state_store, active_cell, selected_cell):
+def update_recs_output(events_json, submit_clicks, mbid_entry_store, recs_state_store, active_cell, selected_cell):
     ctx = dash.callback_context
 
     if ctx.triggered:
@@ -314,7 +332,6 @@ def update_recs_output(events_json, mbid_entry_store, submit_clicks, recs_state_
             artist_name = mbid_entry_dict['name']
         else:
             mbid_entry = None
-
         if active_cell:
             deactivated_cell = dict(row=-1, column=-1, column_id=None, row_id=None)
         else:
@@ -339,8 +356,6 @@ def update_recs_output(events_json, mbid_entry_store, submit_clicks, recs_state_
                 recs_table = [{}]
                 toggle = TOGGLE_OFF
             return message, recs_table, deactivated_cell, [], mbid_entry, events_list, toggle
-        elif (trigger == "mbid-entry-store.data") and (mbid_entry == recs_state_store):
-            raise PreventUpdate
         else:
             #print("here?: {}".format(ctx.triggered[0]['prop_id']))
             message = ""
@@ -358,24 +373,29 @@ def update_venue_events_on_click(mbid_submit, selected_data, events_list):
         if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks":
             return None, ""
         else:
+            events_table = []
+            heading_text = ""
             if events_list is None:
+                raise PreventUpdate
+            elif len(events_list) == 0:
                 raise PreventUpdate
             else:
                 chosen = [point["customdata"] for point in selected_data["points"]]
-                venue_name, venue_id = chosen[0]
+                if len(chosen) > 0:
+                    venue_name, venue_id = chosen[0]
 
-                events_df = pd.DataFrame(events_list)
-                events_df['venue_mbid'] = events_df['venue_mbid'].fillna('')
-                events_df['venue_slid'] = events_df['venue_slid'].fillna('')
-                events_df['venue_id'] = list(zip(events_df.venue_mbid, events_df.venue_slid))
-                events_df['event_date'] = events_df['time'].apply(lambda x:str(x))
-                events_df['link'] = list(zip(events_df.event_slurl.combine_first(events_df.event_mburl),\
-                 events_df['event_slurl'].apply(lambda x: 'Setlist.fm page' if x else 'MusicBrainz page')))
-                events_df['Link to Event Page'] = events_df['link'].apply(lambda x: html.A(x[1], href=x[0], target='_blank'))
-                selected = events_df[events_df['venue_id'] == tuple(venue_id)]
-                events_table = generate_table(selected[['event_date', 'artist_name', 'Link to Event Page']], len(selected))
-                heading_text = 'Who else played {venue} between {start_date} and {end_date}?'.format(\
-                    venue=venue_name, start_date=START_DATE, end_date=END_DATE)
+                    events_df = pd.DataFrame(events_list)
+                    events_df['venue_mbid'] = events_df['venue_mbid'].fillna('')
+                    events_df['venue_slid'] = events_df['venue_slid'].fillna('')
+                    events_df['venue_id'] = list(zip(events_df.venue_mbid, events_df.venue_slid))
+                    events_df['event_date'] = events_df['time'].apply(lambda x:str(x))
+                    events_df['link'] = list(zip(events_df.event_slurl.combine_first(events_df.event_mburl),\
+                     events_df['event_slurl'].apply(lambda x: 'Setlist.fm page' if x else 'MusicBrainz page')))
+                    events_df['Link to Event Page'] = events_df['link'].apply(lambda x: html.A(x[1], href=x[0], target='_blank'))
+                    selected = events_df[events_df['venue_id'] == tuple(venue_id)]
+                    events_table = generate_table(selected[['event_date', 'artist_name', 'Link to Event Page']], len(selected))
+                    heading_text = 'Who else played {venue} between {start_date} and {end_date}?'.format(\
+                        venue=venue_name, start_date=START_DATE, end_date=END_DATE)
                 return events_table, heading_text
 
 @app.callback([Output('more-info-card', 'style'), Output('rec-select-text', 'children')],
