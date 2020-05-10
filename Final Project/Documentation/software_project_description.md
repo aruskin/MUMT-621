@@ -101,26 +101,27 @@ Event
 
 ## Appendix II: Screenshots
 
-![screenshot1][Screenshots/mumt_app_start_page.png]
+![screenshot1](Screenshots/mumt_app_start_page.png)
 
 Figure 1. Appearance of the application in its initial state
 
-![screenshot2][Screenshots/mumt_app_artist_dropdown.png]
+![screenshot2](Screenshots/mumt_app_artist_dropdown.png)
 
 Figure 2. Example of process for inputting the query artist
 
-![screenshot3][Screenshots/mumt_app_events_pull_stage_1.png]
+![screenshot3](Screenshots/mumt_app_events_pull_stage_1.png)
 
 Figure 3. Appearance of application after “Find Related Artists” button is hit and before recommendations have been generated
 
-![screenshot4][Screenshots/mumt_app_events_pull_stage_2.png]
+![screenshot4](Screenshots/mumt_app_events_pull_stage_2.png)
 
 Figure 4. Appearance of application once recommendations have been generated
 
-![screenshot5a][mumt_app_more_artist_info.png]
-![screenshot5b][mumt_app_shared_venue_info.png]
+![screenshot5a](Screenshots/mumt_app_more_artist_info.png)
+![screenshot5b](Screenshots/mumt_app_shared_venue_info.png)
 
 Figure 5. Examples of user interaction with the application via the recommendation table
 
-![screenshot6][mumt_app_venue_table.png]
+![screenshot6](Screenshots/mumt_app_venue_table.png)
+
 Figure 6. Example of user interaction with the application via the venue map visualization
