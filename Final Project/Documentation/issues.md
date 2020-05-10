@@ -63,3 +63,6 @@
 ## Usability
 ### User input of artist name
 - The two-step process requiring a user to type in an artist’s name and then select the artist from a dropdown list can be tedious. It ensures that the system is using the MBID unambiguously tied to the user’s intended artist without requiring the user to find the artist’s MBID themselves. For example, when more than one artist shares the same name, the MusicBrainz artist entries will generally have disambiguating information (e.g., “Slaves (Punk duo from Kent, UK)” versus “Slaves (US post-hardcore band)”), so we allow the user to identify the artist rather than making any assumptions for them. But is it necessary when only 1 result is returned from MusicBrainz?
+
+## Bugs
+- Need to fix logic for updating the second spinner text so that it doesn't say "No recommendations found for {previous query artist}" when new artist submitted
