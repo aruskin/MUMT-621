@@ -211,29 +211,58 @@ def toggle_artist_dropdown(artist_options):
         else:
             return TOGGLE_ON
 
-# When user selects option from dropdown list, update hidden elements for storing
-# query MBID and toggle visibility of Find Related Artists button
 @app.callback(
-    [Output('mbid-entry-store', 'data'), Output('get-recs-button', 'style')],
+    Output('mbid-entry-store', 'data'),
     [Input('mbid-submit-button', 'n_clicks'), Input('artist-dropdown', 'value')],
     [State('artist-dropdown', 'options')])
-def update_mbid_outputs(mbid_submit, artist_dropdown_selection, artist_dropdown_options):
-    ctx = dash.callback_context
-    if ctx.triggered:
-        # If user hits Submit button, clear out entry store and hide Find Related Artists button
-        if ctx.triggered[0]['prop_id'] == "mbid-submit-button.n_clicks":
-            return None, TOGGLE_OFF
-        else:
-            if artist_dropdown_selection is None:
-                return None, TOGGLE_OFF
-            else:
-                selected = [x['label'] for x in artist_dropdown_options \
-                    if x['value'] == artist_dropdown_selection]
-                mbid_store_dict = dict(mbid=artist_dropdown_selection, name=selected[0])
-                mbid_store_data = json.dumps(mbid_store_dict)
-                return mbid_store_data, TOGGLE_ON
-    else:
+def update_mbid_entry_store(mbid_submit, artist_dropdown_selection, artist_dropdown_options):
+    if (mbid_submit is None):
         raise PreventUpdate
+    else:
+        mbid_store_dict = dict(mbid=None, name=None)
+        print("MBID submit: {}".format(mbid_submit))
+        print("Artist dropdown selection: {}".format(artist_dropdown_selection))
+        if artist_dropdown_selection:
+            selected = [x['label'] for x in artist_dropdown_options \
+                if x['value'] == artist_dropdown_selection]
+            mbid_store_dict['mbid'] = artist_dropdown_selection
+            mbid_store_dict['name'] = selected[0]
+        mbid_store_data = json.dumps(mbid_store_dict)
+        print(mbid_store_data)
+        return mbid_store_data
+
+@app.callback(
+    Output('get-recs-button', 'style'),
+    [Input('mbid-submit-button', 'n_clicks'), Input('artist-dropdown', 'value')])
+def toggle_recs_button_visibility(mbid_submit, artist_dropdown_selection):
+    if (mbid_submit is None):
+        raise PreventUpdate
+    else:
+        toggle = TOGGLE_OFF
+        if artist_dropdown_selection:
+            toggle = TOGGLE_ON
+        return toggle
+
+# # When user selects option from dropdown list, update hidden elements for storing
+# # query MBID and toggle visibility of Find Related Artists button
+# @app.callback(
+#     [Output('mbid-entry-store', 'data'), Output('get-recs-button', 'style')],
+#     [Input('mbid-submit-button', 'n_clicks'), Input('artist-dropdown', 'value')],
+#     [State('artist-dropdown', 'options')])
+# def update_mbid_outputs(mbid_submit, artist_dropdown_selection, artist_dropdown_options):
+#     if (mbid_submit is None):
+#         raise PreventUpdate
+#     else:
+#         mbid_store_dict = dict(mbid=None, name=None)
+#         toggle = TOGGLE_OFF
+#         if artist_dropdown_selection:
+#             selected = [x['label'] for x in artist_dropdown_options \
+#                 if x['value'] == artist_dropdown_selection]
+#             mbid_store_dict['mbid'] = artist_dropdown_selection
+#             mbid_store_dict['name'] = selected[0]
+#             toggle = TOGGLE_ON
+#         mbid_store_data = json.dumps(mbid_store_dict)
+#         return mbid_store_data, toggle
 
 # Toggling visibility of section with spinners and recommendation table - hide when Submit button 
 # clicked, show when Find Related Artists button clicked
@@ -271,98 +300,118 @@ def clear_map_click_data(recs_submit, mbid_submit):
     [Output('get-recs-spinner1', 'children'), 
     Output('query-venues-store', 'data'), Output('query-events-text', 'children'), 
     Output('artist-venue-map', 'figure')],
-    [Input('get-recs-button', 'n_clicks')],
+    [Input('get-recs-button', 'n_clicks'), Input('mbid-submit-button', 'n_clicks')],
     [State('mbid-entry-store', 'data'), State('recs-state-store', 'children')]
 )
-def update_summary_text(recs_submit, mbid_entry_store, old_recs_state_store):
-    if recs_submit is None:
+def update_summary_text(recs_submit, mbid_submit, mbid_entry_store, old_recs_state_store):
+    if (recs_submit is None) or (mbid_submit is None):
+        print("Here 1")
         raise PreventUpdate
     else:
+        print("Here 2")
+        ctx = dash.callback_context
+        trigger = ctx.triggered[0]['prop_id']
+
         spinner_out = ""
         query_events_data = json.dumps([])
         card_text_out = ""
         map_plot_out = default_map_figure
 
-        mbid_entry_dict = json.loads(mbid_entry_store)
-        mbid_entry = mbid_entry_dict['mbid']
-        artist_name = mbid_entry_dict['name']
+        print("Trigger: {}".format(trigger))
+        print("MBID entry store: {}".format(mbid_entry_store))
 
-        if mbid_entry == old_recs_state_store:
-            # user has hit Find Related Artist again button without changing query artist
-            raise PreventUpdate
-        else:
-            events, message = gen.get_mb_and_sl_events(mbid_entry, \
-                MB_EVENT_PULLER, SL_EVENT_PULLER, VENUE_MAPPER,\
-                START_DATE, END_DATE, sl_page_limit=SL_ARTIST_PAGE_LIMIT)
-            event_count = len(events)
-            venue_count = 0
-            mappable_events = 0
+        if trigger == 'get-recs-button.n_clicks':
+            #if mbid_entry_store:
+            mbid_entry_dict = json.loads(mbid_entry_store)
+            mbid_entry = mbid_entry_dict['mbid']
+            artist_name = mbid_entry_dict['name']
+            if mbid_entry:
+                if mbid_entry == old_recs_state_store:
+                    # user has hit Find Related Artist again button without changing query artist
+                    raise PreventUpdate
+                else:
+                    events, message = gen.get_mb_and_sl_events(mbid_entry, \
+                        MB_EVENT_PULLER, SL_EVENT_PULLER, VENUE_MAPPER,\
+                        START_DATE, END_DATE, sl_page_limit=SL_ARTIST_PAGE_LIMIT)
+                    event_count = len(events)
+                    venue_count = 0
+                    mappable_events = 0
 
-            if event_count > 0:
-                venue_list = []
-                for event in events:
-                    if event.venue not in venue_list:
-                        venue_list.append(event.venue)
-                        venue_count += 1
-                serializable_events = [event.to_dict() for event in events]
-                query_events_data  = json.dumps(serializable_events, default=str)
-                map_plot_out, mappable_events, mappability_text = gen.generate_artist_events_map(events, mbid_entry)
-            summary_text = message + " {} events were found at {} unique venues.".format(\
-                    event_count, venue_count)
-            mappability_message = "{} events mapped.".format(mappable_events)
-            if mappable_events < event_count:
-                mappability_message = mappability_message +" No coordinates found for {}.".format(mappability_text)
-            card_text_out = html.P([summary_text, html.Hr(), mappability_message])
+                    if event_count > 0:
+                        venue_list = []
+                        for event in events:
+                            if event.venue not in venue_list:
+                                venue_list.append(event.venue)
+                                venue_count += 1
+                        serializable_events = [event.to_dict() for event in events]
+                        query_events_data  = json.dumps(serializable_events, default=str)
+                        map_plot_out, mappable_events, mappability_text = gen.generate_artist_events_map(events, mbid_entry)
+                    summary_text = message + " {} events were found at {} unique venues.".format(\
+                            event_count, venue_count)
+                    mappability_message = "{} events mapped.".format(mappable_events)
+                    if mappable_events < event_count:
+                        mappability_message = mappability_message +" No coordinates found for {}.".format(mappability_text)
+                    card_text_out = html.P([summary_text, html.Hr(), mappability_message])
 
-            spinner_out = "Pulled events for {}".format(artist_name)
-                
-        return spinner_out, query_events_data, card_text_out, map_plot_out#, click_data_out
+                    spinner_out = "Pulled events for {}".format(artist_name)
+        return spinner_out, query_events_data, card_text_out, map_plot_out
+
+@app.callback(
+    [Output('recs-table', 'active_cell'), Output('recs-table', 'selected_cells')],
+    [Input('query-venues-store', 'data')]
+)
+def clear_selected_table_cells(events_json):
+    if events_json is None:
+        raise PreventUpdate
+    else:
+        deactivated_cell = dict(row=-1, column=-1, column_id=None, row_id=None)
+        selected_cells = []
+        return deactivated_cell, selected_cells
 
 # When user hits "Find Related Artists", generate list of recommendations based on
 # query artist (need to have a valid MBID stored) and display in table
 @app.callback(
     [Output('get-recs-spinner2', 'children'), 
-    Output('recs-table', 'data'), Output('recs-table', 'active_cell'), Output('recs-table', 'selected_cells'),
+    Output('recs-table', 'data'), 
     Output('recs-state-store', 'children'), Output('venue-event-storage', 'data'),
     Output('map-tooltip', 'style')],
     [Input('query-venues-store', 'data')],
-    [State('mbid-entry-store', 'data'), State('recs-state-store', 'children'), State('recs-table', 'active_cell'), State('recs-table', 'selected_cells')]
+    [State('mbid-entry-store', 'data'), State('recs-state-store', 'children')]
     )
-def update_recs_output(events_json, mbid_entry_store, recs_state_store, active_cell, selected_cell):
+def update_recs_output(events_json, mbid_entry_store, recs_state_store):
     if events_json is None:
         raise PreventUpdate
     else:
-        if mbid_entry_store:
-            mbid_entry_dict = json.loads(mbid_entry_store)
-            mbid_entry = mbid_entry_dict['mbid']
-            artist_name = mbid_entry_dict['name']
-        else:
-            mbid_entry = None
+        print("Spinner 2: MBID entry store: {}".format(mbid_entry_store))
+
+        mbid_entry_dict = json.loads(mbid_entry_store)
+        mbid_entry = mbid_entry_dict['mbid']
+        artist_name = mbid_entry_dict['name']
           
         spinner2_message = ""
         recs_table = [{}]
-        deactivated_cell = dict(row=-1, column=-1, column_id=None, row_id=None)
-        selected_cells = []
-        new_recs_state_store = mbid_entry
         events_list_out = []
         tooltip_toggle = TOGGLE_OFF
 
         query_events_list = json.loads(events_json)
-        if len(query_events_list) > 0:
+        if (len(query_events_list) == 0) and mbid_entry:
+            spinner2_message = "No events found for {} between {} and {}, so no recommendations.".format(\
+                    artist_name, START_DATE, END_DATE)
+        elif len(query_events_list) > 0:
             events_list_out = gen.get_events_list(\
                 query_events_list, MB_EVENT_PULLER, SL_EVENT_PULLER, VENUE_MAPPER, \
                 START_DATE, END_DATE, SL_VENUE_PAGE_LIMIT)
             if len(events_list_out) > 0:
                 events_df = pd.DataFrame(events_list_out)
-                recs = gen.get_basic_artist_rec_from_df(events_df, new_recs_state_store)
+                recs = gen.get_basic_artist_rec_from_df(events_df, mbid_entry)
                 recs_table = recs.to_dict('records')
                 spinner2_message = "Got recommendations for {}".format(artist_name)
                 tooltip_toggle = TOGGLE_ON
             else:
-               spinner2_message = "No events found for {} between {} and {}, so no recommendations.".format(\
+                spinner2_message = "No events found for {} between {} and {}, so no recommendations.".format(\
                     artist_name, START_DATE, END_DATE)
-        return spinner2_message, recs_table, deactivated_cell, selected_cells, \
-            new_recs_state_store, events_list_out, tooltip_toggle
+
+        return spinner2_message, recs_table, mbid_entry, events_list_out, tooltip_toggle
 
 @app.callback(
     [Output('venue-events-table', 'children'), Output('venue-events-heading', 'children')],
