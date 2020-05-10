@@ -54,7 +54,7 @@ def main():
 
   events_df = pd.DataFrame(all_events)
   if len(events_df) > 0:
-    print(gen.get_basic_artist_rec_from_df(events_df, test_mbid, with_geo=False))
+    print(gen.get_basic_artist_rec_from_df(events_df, test_mbid))
   else:
     print("No events found, so no recommendations generated")
 
