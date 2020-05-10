@@ -104,8 +104,9 @@ recs_table = html.Div(id='recs-table-outer-container',
         html.Div(id='recs-table-inner-container', 
             children=[
                 dbc.Row(html.H3("Top 10 Artists by Number of Shared Venues")),
-                dbc.Row(dash_table.DataTable(id='recs-table', 
-                    columns=[{"name": i, "id": i} for i in REC_COLUMNS]))
+                dbc.Row(dbc.Col(dash_table.DataTable(id='recs-table', 
+                    columns=[{"name": i, "id": i} for i in REC_COLUMNS]),
+                align='center'))
             ]),
         dbc.Tooltip("Click on a cell for more information!",
             target='recs-table-inner-container')
@@ -148,7 +149,8 @@ app.layout = dbc.Container([
         dbc.Col([
             dbc.Row(dbc.Col(user_inputs)),
             dbc.Row(dbc.Col(recs_output)),
-            dbc.Row(dbc.Col(recs_table), align='center'),
+            dbc.Row(dbc.Col(recs_table)),
+            dbc.Row(html.Br()),
             dbc.Row(dbc.Col(more_info_card))
         ], width=4),
         # 2nd column: summary of info about query artist & map
