@@ -37,8 +37,8 @@ SL_EVENT_PULLER = gen.SetlistPuller(api_key=SETLIST_API_KEY)
 VENUE_MAPPER = gen.VenueMapper()
 VENUE_MAPPER.load_json('venue_mapping.json')
 
-SL_ARTIST_PAGE_LIMIT = 1
-SL_VENUE_PAGE_LIMIT = 1
+SL_ARTIST_PAGE_LIMIT = 4
+SL_VENUE_PAGE_LIMIT = 2
 
 REC_COLUMNS = ["Artist", "Shared Venues"]
 
@@ -104,8 +104,9 @@ recs_table = html.Div(id='recs-table-outer-container',
         html.Div(id='recs-table-inner-container', 
             children=[
                 dbc.Row(html.H3("Top 10 Artists by Number of Shared Venues")),
-                dbc.Row(dash_table.DataTable(id='recs-table', 
-                    columns=[{"name": i, "id": i} for i in REC_COLUMNS]))
+                dbc.Row(dbc.Col(dash_table.DataTable(id='recs-table', 
+                    columns=[{"name": i, "id": i} for i in REC_COLUMNS]), 
+                    align='center'))
             ]),
         dbc.Tooltip("Click on a cell for more information!",
             target='recs-table-inner-container')
@@ -123,7 +124,7 @@ summary_cards = [
 
 more_info_card = [dbc.Card([
                     dbc.CardHeader("More info about recommendations"), 
-                    dbc.CardBody(id='rec-select-text', style=card_body_style)],
+                    dbc.CardBody(id='rec-select-text')],
                 id='more-info-card',
                 style=TOGGLE_OFF)]
 
@@ -148,7 +149,8 @@ app.layout = dbc.Container([
         dbc.Col([
             dbc.Row(dbc.Col(user_inputs)),
             dbc.Row(dbc.Col(recs_output)),
-            dbc.Row(dbc.Col(recs_table), align='center'),
+            dbc.Row(dbc.Col(recs_table)),
+            dbc.Row(html.Br()),
             dbc.Row(dbc.Col(more_info_card))
         ], width=4),
         # 2nd column: summary of info about query artist & map
@@ -220,15 +222,12 @@ def update_mbid_entry_store(mbid_submit, artist_dropdown_selection, artist_dropd
         raise PreventUpdate
     else:
         mbid_store_dict = dict(mbid=None, name=None)
-        print("MBID submit: {}".format(mbid_submit))
-        print("Artist dropdown selection: {}".format(artist_dropdown_selection))
         if artist_dropdown_selection:
             selected = [x['label'] for x in artist_dropdown_options \
                 if x['value'] == artist_dropdown_selection]
             mbid_store_dict['mbid'] = artist_dropdown_selection
             mbid_store_dict['name'] = selected[0]
         mbid_store_data = json.dumps(mbid_store_dict)
-        print(mbid_store_data)
         return mbid_store_data
 
 @app.callback(
@@ -242,27 +241,6 @@ def toggle_recs_button_visibility(mbid_submit, artist_dropdown_selection):
         if artist_dropdown_selection:
             toggle = TOGGLE_ON
         return toggle
-
-# # When user selects option from dropdown list, update hidden elements for storing
-# # query MBID and toggle visibility of Find Related Artists button
-# @app.callback(
-#     [Output('mbid-entry-store', 'data'), Output('get-recs-button', 'style')],
-#     [Input('mbid-submit-button', 'n_clicks'), Input('artist-dropdown', 'value')],
-#     [State('artist-dropdown', 'options')])
-# def update_mbid_outputs(mbid_submit, artist_dropdown_selection, artist_dropdown_options):
-#     if (mbid_submit is None):
-#         raise PreventUpdate
-#     else:
-#         mbid_store_dict = dict(mbid=None, name=None)
-#         toggle = TOGGLE_OFF
-#         if artist_dropdown_selection:
-#             selected = [x['label'] for x in artist_dropdown_options \
-#                 if x['value'] == artist_dropdown_selection]
-#             mbid_store_dict['mbid'] = artist_dropdown_selection
-#             mbid_store_dict['name'] = selected[0]
-#             toggle = TOGGLE_ON
-#         mbid_store_data = json.dumps(mbid_store_dict)
-#         return mbid_store_data, toggle
 
 # Toggling visibility of section with spinners and recommendation table - hide when Submit button 
 # clicked, show when Find Related Artists button clicked
@@ -279,7 +257,6 @@ def toggle_rec_area_visibility(mbid_submit, recs_submit):
             return TOGGLE_ON
     else:
         raise PreventUpdate
-
 
 @app.callback(
     Output('artist-venue-map', 'clickData'),
@@ -305,10 +282,8 @@ def clear_map_click_data(recs_submit, mbid_submit):
 )
 def update_summary_text(recs_submit, mbid_submit, mbid_entry_store, old_recs_state_store):
     if (recs_submit is None) or (mbid_submit is None):
-        print("Here 1")
         raise PreventUpdate
     else:
-        print("Here 2")
         ctx = dash.callback_context
         trigger = ctx.triggered[0]['prop_id']
 
@@ -317,11 +292,7 @@ def update_summary_text(recs_submit, mbid_submit, mbid_entry_store, old_recs_sta
         card_text_out = ""
         map_plot_out = default_map_figure
 
-        print("Trigger: {}".format(trigger))
-        print("MBID entry store: {}".format(mbid_entry_store))
-
         if trigger == 'get-recs-button.n_clicks':
-            #if mbid_entry_store:
             mbid_entry_dict = json.loads(mbid_entry_store)
             mbid_entry = mbid_entry_dict['mbid']
             artist_name = mbid_entry_dict['name']
@@ -382,8 +353,6 @@ def update_recs_output(events_json, mbid_entry_store, recs_state_store):
     if events_json is None:
         raise PreventUpdate
     else:
-        print("Spinner 2: MBID entry store: {}".format(mbid_entry_store))
-
         mbid_entry_dict = json.loads(mbid_entry_store)
         mbid_entry = mbid_entry_dict['mbid']
         artist_name = mbid_entry_dict['name']
