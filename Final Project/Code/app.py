@@ -92,19 +92,24 @@ user_inputs = [
     dbc.Button(id='get-recs-button', children='Find Related Artists', style=TOGGLE_OFF)
 ]
 
-recs_output = html.Div(id='get-recs-container',
+recs_output = html.Div(id='spinners-container',
     children=[
         dbc.Row(dbc.Spinner(html.Div(id='get-recs-spinner1'), color="primary")),
         dbc.Row(dbc.Spinner(html.Div(id='get-recs-spinner2'), color="secondary")),
-        dbc.Row(html.H3("Top 10 Artists by Number of Shared Venues")),
-        dbc.Row([
-            dbc.Col(dash_table.DataTable(id='recs-table', 
-                columns=[{"name": i, "id": i} for i in REC_COLUMNS]), 
-            id='recs-table-container', align='center'),
-            dbc.Tooltip("Click on a cell for more information!",
-                target='recs-table-container')
-        ])
     ],
+    style=TOGGLE_OFF)
+
+recs_table = html.Div(id='recs-table-outer-container',
+    children=[
+        html.Div(id='recs-table-inner-container', 
+            children=[
+                dbc.Row(html.H3("Top 10 Artists by Number of Shared Venues")),
+                dbc.Row(dash_table.DataTable(id='recs-table', 
+                    columns=[{"name": i, "id": i} for i in REC_COLUMNS]))
+            ]),
+        dbc.Tooltip("Click on a cell for more information!",
+            target='recs-table-inner-container')
+        ],
     style=TOGGLE_OFF)
 
 card_body_style = {'maxHeight':'150px', 'overflowY':'scroll'}
@@ -143,6 +148,7 @@ app.layout = dbc.Container([
         dbc.Col([
             dbc.Row(dbc.Col(user_inputs)),
             dbc.Row(dbc.Col(recs_output)),
+            dbc.Row(dbc.Col(recs_table), align='center'),
             dbc.Row(dbc.Col(more_info_card))
         ], width=4),
         # 2nd column: summary of info about query artist & map
@@ -232,7 +238,7 @@ def update_mbid_outputs(mbid_submit, artist_dropdown_selection, artist_dropdown_
 # Toggling visibility of section with spinners and recommendation table - hide when Submit button 
 # clicked, show when Find Related Artists button clicked
 @app.callback(
-    Output('get-recs-container', 'style'),
+    Output('spinners-container', 'style'),
     [Input('mbid-submit-button', 'n_clicks'), Input('get-recs-button', 'n_clicks')]
     )
 def toggle_rec_area_visibility(mbid_submit, recs_submit):
@@ -455,6 +461,18 @@ def display_recommended_artist_info(mbid_submit, active_cell, events_list, recs_
                 card_text_out = html.P([message] + event_text)
                 
             return card_display_out, card_text_out
+
+@app.callback(
+    Output('recs-table-outer-container', 'style'),
+    [Input('get-recs-spinner2', 'children')])
+def toggle_recs_table_visibility(spinner_2_message):
+    if spinner_2_message is None:
+        raise PreventUpdate
+    else:
+        if "Got recommendations" in spinner_2_message:
+            return TOGGLE_ON
+        else:
+            return TOGGLE_OFF
 
 if __name__ == '__main__':
     app.run_server(debug=True)
