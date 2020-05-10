@@ -222,15 +222,12 @@ def update_mbid_entry_store(mbid_submit, artist_dropdown_selection, artist_dropd
         raise PreventUpdate
     else:
         mbid_store_dict = dict(mbid=None, name=None)
-        print("MBID submit: {}".format(mbid_submit))
-        print("Artist dropdown selection: {}".format(artist_dropdown_selection))
         if artist_dropdown_selection:
             selected = [x['label'] for x in artist_dropdown_options \
                 if x['value'] == artist_dropdown_selection]
             mbid_store_dict['mbid'] = artist_dropdown_selection
             mbid_store_dict['name'] = selected[0]
         mbid_store_data = json.dumps(mbid_store_dict)
-        print(mbid_store_data)
         return mbid_store_data
 
 @app.callback(
@@ -244,27 +241,6 @@ def toggle_recs_button_visibility(mbid_submit, artist_dropdown_selection):
         if artist_dropdown_selection:
             toggle = TOGGLE_ON
         return toggle
-
-# # When user selects option from dropdown list, update hidden elements for storing
-# # query MBID and toggle visibility of Find Related Artists button
-# @app.callback(
-#     [Output('mbid-entry-store', 'data'), Output('get-recs-button', 'style')],
-#     [Input('mbid-submit-button', 'n_clicks'), Input('artist-dropdown', 'value')],
-#     [State('artist-dropdown', 'options')])
-# def update_mbid_outputs(mbid_submit, artist_dropdown_selection, artist_dropdown_options):
-#     if (mbid_submit is None):
-#         raise PreventUpdate
-#     else:
-#         mbid_store_dict = dict(mbid=None, name=None)
-#         toggle = TOGGLE_OFF
-#         if artist_dropdown_selection:
-#             selected = [x['label'] for x in artist_dropdown_options \
-#                 if x['value'] == artist_dropdown_selection]
-#             mbid_store_dict['mbid'] = artist_dropdown_selection
-#             mbid_store_dict['name'] = selected[0]
-#             toggle = TOGGLE_ON
-#         mbid_store_data = json.dumps(mbid_store_dict)
-#         return mbid_store_data, toggle
 
 # Toggling visibility of section with spinners and recommendation table - hide when Submit button 
 # clicked, show when Find Related Artists button clicked
@@ -307,10 +283,8 @@ def clear_map_click_data(recs_submit, mbid_submit):
 )
 def update_summary_text(recs_submit, mbid_submit, mbid_entry_store, old_recs_state_store):
     if (recs_submit is None) or (mbid_submit is None):
-        print("Here 1")
         raise PreventUpdate
     else:
-        print("Here 2")
         ctx = dash.callback_context
         trigger = ctx.triggered[0]['prop_id']
 
@@ -319,11 +293,7 @@ def update_summary_text(recs_submit, mbid_submit, mbid_entry_store, old_recs_sta
         card_text_out = ""
         map_plot_out = default_map_figure
 
-        print("Trigger: {}".format(trigger))
-        print("MBID entry store: {}".format(mbid_entry_store))
-
         if trigger == 'get-recs-button.n_clicks':
-            #if mbid_entry_store:
             mbid_entry_dict = json.loads(mbid_entry_store)
             mbid_entry = mbid_entry_dict['mbid']
             artist_name = mbid_entry_dict['name']
@@ -347,7 +317,7 @@ def update_summary_text(recs_submit, mbid_submit, mbid_entry_store, old_recs_sta
                                 venue_count += 1
                         serializable_events = [event.to_dict() for event in events]
                         query_events_data  = json.dumps(serializable_events, default=str)
-                        map_plot_out, mappable_events, mappability_text = gen.generate_artist_events_map(events, mbid_entry)
+                        map_plot_out, mappable_events, mappability_text = gen.generate_artist_events_map(events, mbid_entry, default_map_figure)
                     summary_text = message + " {} events were found at {} unique venues.".format(\
                             event_count, venue_count)
                     mappability_message = "{} events mapped.".format(mappable_events)
@@ -384,7 +354,6 @@ def update_recs_output(events_json, mbid_entry_store, recs_state_store):
     if events_json is None:
         raise PreventUpdate
     else:
-        print("Spinner 2: MBID entry store: {}".format(mbid_entry_store))
 
         mbid_entry_dict = json.loads(mbid_entry_store)
         mbid_entry = mbid_entry_dict['mbid']

@@ -516,8 +516,7 @@ def get_events_list(query_artist_events, mb_event_puller, sl_event_puller, venue
   all_events = [y for x in all_events for y in x]
   return all_events
 
-
-def generate_artist_events_map(query_artist_events, query_mbid):
+def generate_artist_events_map(query_artist_events, query_mbid, default_map_figure):
   """
   Create geographical plot of query artist events with lat/long data,
   return plot object, number of events plotted, and text summarizing events not
@@ -533,7 +532,7 @@ def generate_artist_events_map(query_artist_events, query_mbid):
 
   query_artist_name = std_events[0]['artist_name']
   mappable_events = [event for event in std_events if \
-    ('venue_lat' in event) or ('city_lat' in event)]
+    (event['venue_lat'] is not None) or (event['city_lat'] is not None)]
   non_mappable_events = [event for event in std_events if \
     event not in mappable_events]
   
@@ -542,7 +541,8 @@ def generate_artist_events_map(query_artist_events, query_mbid):
       for x in non_mappable_events]
   non_mappable_text = "; ".join(non_mappable_text)
 
-  for event in mappable_events:
+  if len(mappable_events) > 0:
+    for event in mappable_events:
       event['url'] = not_none(event['event_slurl'], event['event_mburl'])
       if event['venue_lat']: #not None
           event['venue_name'] = event['venue_mbname']
@@ -555,34 +555,33 @@ def generate_artist_events_map(query_artist_events, query_mbid):
           event['lat'] = event['city_lat']
           event['lon'] = event['city_long']
 
-  if len(mappable_events) > 0:
-      df = pd.DataFrame(mappable_events)
-      df['text'] = df['artist_name'] + ' @ ' + df['venue_name'] + \
-          ' (' + df['time'].apply(lambda x: str(x)) + ')'
+    df = pd.DataFrame(mappable_events)
+    df['text'] = df['artist_name'] + ' @ ' + df['venue_name'] + \
+        ' (' + df['time'].apply(lambda x: str(x)) + ')'
 
-      df['venue_mbid'] = df['venue_mbid'].fillna('')
-      df['venue_slid'] = df['venue_slid'].fillna('')
-      df['venue_id'] = list(zip(df.venue_mbid, df.venue_slid))
-      df_grouped = df.groupby(['venue_name', 'venue_id', 'lat', 'lon', 'coord_type'])
-      events_by_venue_text = df_grouped['text'].agg(lambda x:'<br>'.join(x))
-      events_by_venue = events_by_venue_text.reset_index()
-      events_by_venue['text'] = events_by_venue['text'] + '<br>Mapped using '+ \
-        events_by_venue['coord_type'] + ' coordinates.' 
-        #LightSeaGreen
-      fig = go.Figure(data=go.Scattergeo(
-          lon = events_by_venue['lon'],
-          lat = events_by_venue['lat'],
-          text = events_by_venue['text'],
-          hoverinfo = 'text',
-          customdata = events_by_venue[['venue_name', 'venue_id']].apply(tuple, axis=1),
-          mode = 'markers',
-          marker = dict(color="LightSeaGreen", size=8, opacity=0.6, symbol='star',
-            line=dict(width=2, color='DarkSlateGrey'))
-          ), 
-        layout=go.Layout(autosize=True, margin=go.layout.Margin(l=0, r=0, t=0, b=0),
-          showlegend=False))
-      fig.update_geos(showcountries=True)
-      return fig, len(mappable_events), non_mappable_text
+    df['venue_mbid'] = df['venue_mbid'].fillna('')
+    df['venue_slid'] = df['venue_slid'].fillna('')
+    df['venue_id'] = list(zip(df.venue_mbid, df.venue_slid))
+    df_grouped = df.groupby(['venue_name', 'venue_id', 'lat', 'lon', 'coord_type'])
+    events_by_venue_text = df_grouped['text'].agg(lambda x:'<br>'.join(x))
+    events_by_venue = events_by_venue_text.reset_index()
+    events_by_venue['text'] = events_by_venue['text'] + '<br>Mapped using '+ \
+      events_by_venue['coord_type'] + ' coordinates.' 
+      #LightSeaGreen
+    fig = go.Figure(data=go.Scattergeo(
+        lon = events_by_venue['lon'],
+        lat = events_by_venue['lat'],
+        text = events_by_venue['text'],
+        hoverinfo = 'text',
+        customdata = events_by_venue[['venue_name', 'venue_id']].apply(tuple, axis=1),
+        mode = 'markers',
+        marker = dict(color="LightSeaGreen", size=8, opacity=0.6, symbol='star',
+          line=dict(width=2, color='DarkSlateGrey'))
+        ), 
+      layout=go.Layout(autosize=True, margin=go.layout.Margin(l=0, r=0, t=0, b=0),
+        showlegend=False))
+    fig.update_geos(showcountries=True)
+    return fig, len(mappable_events), non_mappable_text
   else:
       return default_map_figure, 0, non_mappable_text
 
