@@ -37,7 +37,7 @@ SL_EVENT_PULLER = gen.SetlistPuller(api_key=SETLIST_API_KEY)
 VENUE_MAPPER = gen.VenueMapper()
 VENUE_MAPPER.load_json('venue_mapping.json')
 
-SL_ARTIST_PAGE_LIMIT = 1
+SL_ARTIST_PAGE_LIMIT = 2
 SL_VENUE_PAGE_LIMIT = 1
 
 REC_COLUMNS = ["Artist", "Shared Venues"]
