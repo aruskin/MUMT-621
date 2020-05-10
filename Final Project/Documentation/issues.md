@@ -1,5 +1,8 @@
 # Issues, Challenges, Limitations
 
+## Heroku deployment
+- Different handling of resources than when running locally in Dash development environment--need to look into this more to handle issues dealing with multiple processes in a reasonable way.
+
 ## Dealing with APIs
 
 ### Retrieving events by date range
