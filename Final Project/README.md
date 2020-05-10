@@ -45,7 +45,7 @@ Run the app (from the activated virtual environment) with `python app.py`
 
 - Formal write-ups and slide presentation for class
 	- [Initial project proposal](Documentation/proposal.md)
-	- [Presentation slides](Documentation/Project presentation.pdf)
+	- [Presentation slides](Documentation/project_presentation.pdf)
 	- [Abstract and bibliography](Documentation/project_abstract_and_full_bibliography.md)
 	- [Final software project description](Documentation/software_project_description.md)
 - [Lots of issues and next steps!](Documentation/issues.md) 
