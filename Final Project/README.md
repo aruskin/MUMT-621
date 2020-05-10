@@ -32,3 +32,21 @@ Run the app (from the activated virtual environment) with `python app.py`
 3. Once you've selected an artist from the dropdown list, the "Find Related Artists" button will appear. Hit this button to start generating a list of recommendations, or go back to steps 1 or 2 to change your artist selection.
 4. If the selected artist has recent events in MusicBrainz and/or Setlist.fm, the text in the "Summary" and "Mappability" cards with more information about those, and the mappable venues will appear on the map plot. While the recommendations are being generated, you can hover over the venues on the map to see their names and the dates the artist played there.
 5. Once the recommendations have been generated, a table with the top 10 artists by number of shared venues with the selected artist will appear. You can click on the cells of the table in the "Artist" column to find out more about the recommended artist and in the "Shared Venues" column to see a list of the venues the recommended artist also played at. If you click on venues on the map, a table of the recent events at that venue will appear under the map figure.
+
+
+## What Else is in Here?
+
+### Code
+
+- [venue-mapping](Code/venue-mapping/): Utilities for generating mapping between venues from MusicBrainz and Setlist.fm
+- [example.py](Code/example.py): Do one-off runs of recommendation system from the CLI
+
+### Documentation
+
+- Formal write-ups and slide presentation for class
+	- [Initial project proposal](Documentation/proposal.md)
+	- [Presentation slides](Documentation/Project presentation.pdf)
+	- [Abstract and bibliography](Documentation/project_abstract_and_full_bibliography.md)
+	- [Final software project description](Documentation/software_project_description.md)
+- [Lots of issues and next steps!](Documentation/issues.md) 
+
