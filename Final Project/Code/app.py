@@ -325,49 +325,44 @@ def update_summary_text(recs_submit, mbid_entry_store, old_recs_state_store):
     Output('recs-table', 'data'), Output('recs-table', 'active_cell'), Output('recs-table', 'selected_cells'),
     Output('recs-state-store', 'children'), Output('venue-event-storage', 'data'),
     Output('map-tooltip', 'style')],
-    [Input('query-venues-store', 'data'), Input('mbid-submit-button', 'n_clicks')],
+    [Input('query-venues-store', 'data')],
     [State('mbid-entry-store', 'data'), State('recs-state-store', 'children'), State('recs-table', 'active_cell'), State('recs-table', 'selected_cells')]
     )
-def update_recs_output(events_json, submit_clicks, mbid_entry_store, recs_state_store, active_cell, selected_cell):
-    ctx = dash.callback_context
-
-    if ctx.triggered:
+def update_recs_output(events_json, mbid_entry_store, recs_state_store, active_cell, selected_cell):
+    if events_json is None:
+        raise PreventUpdate
+    else:
         if mbid_entry_store:
             mbid_entry_dict = json.loads(mbid_entry_store)
             mbid_entry = mbid_entry_dict['mbid']
             artist_name = mbid_entry_dict['name']
         else:
             mbid_entry = None
-        if active_cell:
-            deactivated_cell = dict(row=-1, column=-1, column_id=None, row_id=None)
-        else:
-            deactivated_cell = None
+          
+        spinner2_message = ""
+        recs_table = [{}]
+        deactivated_cell = dict(row=-1, column=-1, column_id=None, row_id=None)
+        selected_cells = []
+        new_recs_state_store = mbid_entry
+        events_list_out = []
+        tooltip_toggle = TOGGLE_OFF
 
-        trigger = ctx.triggered[0]['prop_id']
-        if (trigger == "query-venues-store.data") and events_json:
-            query_events_list = json.loads(events_json)
-
-            events_list = gen.get_events_list(\
+        query_events_list = json.loads(events_json)
+        if len(query_events_list) > 0:
+            events_list_out = gen.get_events_list(\
                 query_events_list, MB_EVENT_PULLER, SL_EVENT_PULLER, VENUE_MAPPER, \
                 START_DATE, END_DATE, SL_VENUE_PAGE_LIMIT)
-            if len(events_list) > 0:
-                events_df = pd.DataFrame(events_list)
-                recs = gen.get_basic_artist_rec_from_df(events_df, mbid_entry)
+            if len(events_list_out) > 0:
+                events_df = pd.DataFrame(events_list_out)
+                recs = gen.get_basic_artist_rec_from_df(events_df, new_recs_state_store)
                 recs_table = recs.to_dict('records')
-                message = "Got recommendations for {}".format(artist_name)
-                toggle = TOGGLE_ON
+                spinner2_message = "Got recommendations for {}".format(artist_name)
+                tooltip_toggle = TOGGLE_ON
             else:
-                message = "No events found for {} between {} and {}, so no recommendations.".format(\
+               spinner2_message = "No events found for {} between {} and {}, so no recommendations.".format(\
                     artist_name, START_DATE, END_DATE)
-                recs_table = [{}]
-                toggle = TOGGLE_OFF
-            return message, recs_table, deactivated_cell, [], mbid_entry, events_list, toggle
-        else:
-            #print("here?: {}".format(ctx.triggered[0]['prop_id']))
-            message = ""
-            return message, [{}], deactivated_cell, [], None, None, TOGGLE_OFF
-    else:
-        raise PreventUpdate
+        return spinner2_message, recs_table, deactivated_cell, selected_cells, \
+            new_recs_state_store, events_list_out, tooltip_toggle
 
 @app.callback(
     [Output('venue-events-table', 'children'), Output('venue-events-heading', 'children')],
