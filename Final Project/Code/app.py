@@ -72,7 +72,8 @@ server = app.server
 
 # Secret divs for intermediate value storage
 secret_divs = [
-        dcc.Store(id='mbid-entry-store')
+        dcc.Store(id='mbid-entry-store'),
+        dcc.Store(id='mbid-submission-store')
     ]
 
 # User input stuff - text box for artist name, submission button, dropdown for results
@@ -210,6 +211,24 @@ def toggle_recs_button_visibility(stored_entry):
         if mbid_entry:
             toggle = TOGGLE_ON
         return toggle
+
+# Called if Get Recs button clicked or selected artist changes
+@app.callback(
+    Output('mbid-submission-store', 'data'),
+    [Input('get-recs-button', 'n_clicks'), Input('mbid-entry-store', 'data')])
+def update_mbid_submit_store(submit_clicks, stored_entry):
+    """
+    Updates submitted artist store with value in selected artist store when Get Recs button clicked
+    and clears out value when selected artist changes
+    """
+    ctx = dash.callback_context
+
+    if ctx.triggered[0]['prop_id'] == "get-recs-button.n_clicks":
+        mbid_submit_data = stored_entry
+    else:
+        mbid_submit_data = json.dumps(dict(mbid=None, name=None))
+    print('MBID submit store: {}'.format(mbid_submit_data))
+    return mbid_submit_data
 
 if __name__ == '__main__':
     app.run_server(debug=True)
