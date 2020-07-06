@@ -85,7 +85,8 @@ user_inputs = [
             children=[dcc.Dropdown(id='artist-dropdown', placeholder='Select artist')], 
             style=TOGGLE_OFF),
     html.Div(id='mbid-message'),
-    html.Br()
+    html.Br(),
+    dbc.Button(id='get-recs-button', children='Find Related Artists', style=TOGGLE_OFF)
 ]
 
 header = [
@@ -187,6 +188,28 @@ def update_mbid_entry_store(artist_dropdown_selection, artist_dropdown_options):
     mbid_store_data = json.dumps(mbid_store_dict)
     print('MBID entry store: {}'.format(mbid_store_data))
     return mbid_store_data
+
+# Called whenever MBID entry store value changes
+@app.callback(
+    Output('get-recs-button', 'style'),
+    [Input('mbid-entry-store', 'data')])
+def toggle_recs_button_visibility(stored_entry):
+    """
+    Determine when to show Get Recommendations button. Display when user has selected artist from
+    dropdown, hide otherwise.
+
+    Keyword arguments:
+    stored_entry -- current data stored in MBID entry store
+    """
+    if (stored_entry is None):
+        raise PreventUpdate
+    else:
+        toggle = TOGGLE_OFF
+        mbid_entry_dict = json.loads(stored_entry)
+        mbid_entry = mbid_entry_dict['mbid']
+        if mbid_entry:
+            toggle = TOGGLE_ON
+        return toggle
 
 if __name__ == '__main__':
     app.run_server(debug=True)
