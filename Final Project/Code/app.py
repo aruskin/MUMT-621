@@ -1,3 +1,6 @@
+# TO-DO toggle rec area visibility not actually updating styles???
+# Why try to toggle rec area visibility--instead of showing/hiding table container, what about only creating table when valid?
+import flask
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
@@ -43,9 +46,10 @@ SL_VENUE_PAGE_LIMIT = 1
 REC_COLUMNS = ["Artist", "Shared Venues"]
 
 TOGGLE_ON = {'display': 'block'}
+#MAP_TOGGLE_ON = {'display': 'block', 'height':'250px'}
 TOGGLE_OFF = {'display': 'none'}
 
-external_stylesheets = [dbc.themes.SKETCHY]
+#external_stylesheets = [dbc.themes.SKETCHY]
 
 # Empty map figure (note: no country borders)
 default_map_figure = go.Figure(data=go.Scattergeo(),
@@ -100,41 +104,52 @@ def generate_events_list(mbid_entry, artist_name):
                 query_events_list, MB_EVENT_PULLER, SL_EVENT_PULLER, VENUE_MAPPER, \
                 START_DATE, END_DATE, SL_VENUE_PAGE_LIMIT)
         if len(events_list_out) > 0:
-            events_df = pd.DataFrame(events_list_out)
-            recs = gen.get_basic_artist_rec_from_df(events_df, mbid_entry)
-            recs_table = recs.to_dict('records')
             return_messages['progress_text'] = "Got recommendations for {}".format(artist_name)
             #tooltip_toggle = TOGGLE_ON
     else: #no events found
         return_messages['progress_text'] = "No events found for {} between {} and {}, so no recommendations.".format(\
                     artist_name, START_DATE, END_DATE)
+        map_plot_out = default_map_figure
+        events_list_out = []
     #event_pull_entry = json.dumps(dict(mbid=mbid_entry, name=artist_name))
-    return map_plot_out, recs_table, return_messages
+    return map_plot_out, events_list_out, return_messages
+
+def generate_recs_table(events_list, mbid_entry):
+    recs_table = [{}]
+    if len(events_list) > 0:
+        events_df = pd.DataFrame(events_list)
+        recs = gen.get_basic_artist_rec_from_df(events_df, mbid_entry)
+        recs_table = recs.to_dict('records')
+    return recs_table
+
+
+
 #########
+server = flask.Flask(__name__)
+#app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+app = dash.Dash(__name__, server=server)
 
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
-
-server = app.server
+#server = app.server
 
 # Secret divs for intermediate value storage
 secret_divs = [
     dcc.Store(id='mbid-entry-store'),
     dcc.Store(id='mbid-submission-store'),
     dcc.Store(id='init-event-pull-store'),
-    dcc.Store(id='query-venues-store')
+    dcc.Store(id='venue-event-storage')
     ]
 
 # User input stuff - text box for artist name, submission button, dropdown for results
 user_inputs = [
-    html.Label("Enter artist name:"),
+    html.Label("Enter artist name: "),
     dcc.Input(id='artist-input', type='text', placeholder='e.g., Korpiklaani', value=""),
     dbc.Button(id='mbid-submit-button', children='Submit'),
+    html.Br(),
     # intialize artist dropdown as hidden display
     html.Div(id='artist-dropdown-container',
             children=[dcc.Dropdown(id='artist-dropdown', placeholder='Select artist')], 
             style=TOGGLE_OFF),
     html.Div(id='mbid-message'),
-    html.Br(),
     dbc.Button(id='get-recs-button', children='Find Related Artists', style=TOGGLE_OFF)
 ]
 
@@ -142,25 +157,36 @@ recs_output = html.Div(id='recs-out-container',
     children=[
         dbc.Row(dbc.Spinner(html.Div(id='get-recs-spinner1'), color="primary")),
         #dbc.Row(dbc.Spinner(html.Div(id='get-recs-spinner2'), color="secondary")),
-        html.Div(id='recs-table-container', 
-            children=[
-                dbc.Row(html.H3("Top 10 Artists by Number of Shared Venues")),
-                dbc.Row(dbc.Col(dash_table.DataTable(id='recs-table', 
-                    columns=[{"name": i, "id": i} for i in REC_COLUMNS]),
-                align='center'))
-            ], style=TOGGLE_OFF),
-        dbc.Tooltip("Click on a cell for more information!",
-            target='recs-table-container')
+        dbc.Row(id='recs-table-container', 
+            children = [dbc.Col(
+                children=[
+                    dbc.Row(html.H3(id="recs-table-heading")),
+                    dbc.Row(dbc.Col(dash_table.DataTable(id='recs-table', 
+                        columns=[{"name": i, "id": i} for i in REC_COLUMNS]),
+                        align='center'))
+                ])], 
+            style=TOGGLE_OFF)
+        #dbc.Tooltip("Click on a cell for more information!",
+        #    target='recs-table-container')])
     ],
     style=TOGGLE_OFF)
 
-map_component = [
-    dbc.Col([dcc.Graph(id='artist-venue-map', figure=default_map_figure, 
-        config={'scrollZoom':True, 'showTips':True})], 
-        id='map-container'),
-    dbc.Tooltip("Click on a venue to see who else has played there!",
-        target='map-container', hide_arrow=True, style=TOGGLE_OFF, id='map-tooltip')
-    ]
+map_plot = html.Div(id='map-container',
+        children=[dcc.Graph(id='artist-venue-map', figure=default_map_figure, 
+                    config={'scrollZoom':True, 'showTips':True, 'responsive':True})],
+        style=TOGGLE_OFF)
+
+map_info_table = html.Div(id='map-table-component',
+    children=[dbc.Row([html.H3(id='venue-events-heading')]),
+        dbc.Row([dbc.Table(id='venue-events-table', striped=True, size='sm')], 
+                style={'maxHeight': '250px','overflowY':'scroll', 'margin': '10px'})])
+
+# map_component = html.Div(id='map-container',
+#     children=[
+#         dbc.Row(dbc.Col(map_plot)),
+#         dbc.Row(dbc.Col(map_info_table))
+        
+#     ], style=TOGGLE_OFF)
 
 header = [
     html.H1('Get Artist Recommendations by Tour History',
@@ -171,14 +197,22 @@ app.layout = dbc.Container([
     dbc.Row([dbc.Col(header)]),
     html.Div(secret_divs),
     dbc.Row([
-        # 1st column: user input options
-        dbc.Col([
-            dbc.Row(dbc.Col(user_inputs)),
-            dbc.Row(dbc.Col(recs_output))
-        ], width=4),
-        dbc.Col(dbc.Row(map_component))
+        dbc.Col(user_inputs, width = 4),
+        dbc.Col(map_plot, width = 8)
+    ]),
+    dbc.Row([
+        dbc.Col(recs_output, width = 4),
+        dbc.Col(map_info_table, width = 8)
+        ])
     ])
-])
+        
+        # 1st column: user input options
+        # dbc.Col([
+        #     dbc.Row(dbc.Col(user_inputs)),
+        #     dbc.Row(dbc.Col(recs_output))
+        # ], width=4),
+        # dbc.Col([dbc.Row(dbc.Col(map_component))
+        #     ], width=8)
 
 ###############
 # Callbacks!
@@ -311,36 +345,33 @@ def update_mbid_submit_store(submit_clicks, stored_entry):
 @app.callback(
     Output('recs-out-container', 'style'),
     [Input('mbid-submission-store', 'data')])
-
 def toggle_rec_area_visibility(stored_mbid_entry):
     if (stored_mbid_entry is None):
         raise PreventUpdate
     else:
-        toggle = TOGGLE_OFF
+        recs_toggle = TOGGLE_OFF
         mbid_entry_dict = json.loads(stored_mbid_entry)
         mbid_entry = mbid_entry_dict['mbid']
-
+        print("toggle_rec_area_visibility: MBID entry: {}".format(mbid_entry))
         if mbid_entry:
-            toggle = TOGGLE_ON
-        return toggle
+            recs_toggle = TOGGLE_ON
+        return recs_toggle
 
 
 @app.callback(
     [Output('init-event-pull-store', 'data'), 
-    Output('get-recs-spinner1', 'children'), Output('artist-venue-map', 'figure'),
-    Output('recs-table', 'data')],
+    Output('get-recs-spinner1', 'children'), Output('artist-venue-map', 'figure'), Output('venue-event-storage', 'data')],
     [Input('recs-out-container', 'style')],
-    [State('mbid-submission-store', 'data'), State('init-event-pull-store', 'data'), 
-    State('query-venues-store', 'data'), State('artist-venue-map', 'figure'),
-    State('recs-table', 'data')]
+    [State('mbid-submission-store', 'data'), State('init-event-pull-store', 'data'), State('artist-venue-map', 'figure'),
+    State('venue-event-storage', 'data')]
     )
-def update_recs_and_map(toggle, stored_mbid_entry, event_pull_entry, event_pull_data, current_map, current_recs_table):
-    if (toggle == TOGGLE_OFF):
-        raise PreventUpdate
-    else:
+def update_recs_and_map(toggle, stored_mbid_entry, event_pull_entry, current_map, current_event_data):
+   # if (toggle == TOGGLE_OFF):
+   #     raise PreventUpdate
+   # else:
         spinner_out = ""
         map_plot_out = default_map_figure
-        recs_table = [{}]
+        events_list_out = []
 
         mbid_entry_dict = json.loads(stored_mbid_entry)
         mbid_entry = mbid_entry_dict['mbid']
@@ -354,46 +385,120 @@ def update_recs_and_map(toggle, stored_mbid_entry, event_pull_entry, event_pull_
             event_entry = event_entry_dict['mbid']
 
         if mbid_entry:
-            if (event_entry is None) or (event_entry != mbid_entry):
-                map_plot_out, recs_table, return_messages = generate_events_list(mbid_entry, artist_name)
+            if (mbid_entry == event_entry) and (len(current_event_data) > 0):
+                spinner_out = "Already pulled events for {}".format(artist_name)
+                map_plot_out = current_map
+                events_list_out = current_event_data
+            else:
+                map_plot_out, events_list_out, return_messages = generate_events_list(mbid_entry, artist_name)
 
                 print(return_messages['card_summary'])
 
                 spinner_out = return_messages['progress_text']
                 event_pull_entry = json.dumps(dict(mbid=mbid_entry, name=artist_name))
-            else:
-                print("already pulled events for {}".format(artist_name))
-                map_plot_out = current_map
-                recs_table = current_recs_table
-            #spinner_out = "Pulled events for {}".format(artist_name)
-            #print(event_pull_data)
-        return event_pull_entry, spinner_out, map_plot_out, recs_table
+        return event_pull_entry, spinner_out, map_plot_out, events_list_out
+
+# # Toggle visibility of recommendations table - make sure doesn't show when new query has been submitted 
+# # but new recommendations not yet generated
+# @app.callback(
+#     Output('recs-table-container', 'style'),
+#     #[Output('recs-table-container', 'style'), Output('map-container', 'style')],
+#     [Input('mbid-submission-store', 'data'), Input('init-event-pull-store', 'data')],
+#     [State('recs-table-container', 'style')]
+#     )
+# def toggle_recs_table(stored_mbid_entry, event_pull_entry, current_style):
+#     print("Current style: {}".format(current_style))
+#     if (stored_mbid_entry is None):
+#         raise PreventUpdate
+#     else:
+#         recs_toggle = TOGGLE_OFF
+#         map_toggle = TOGGLE_OFF
+#         mbid_entry_dict = json.loads(stored_mbid_entry)
+#         mbid_entry = mbid_entry_dict['mbid']
+
+#         print("toggle_recs_table: MBID submit store: {}".format(mbid_entry))
+#         if mbid_entry:
+#             if event_pull_entry is None:
+#                 event_entry = None
+#             else:
+#                 event_entry_dict = json.loads(event_pull_entry)
+#                 event_entry = event_entry_dict['mbid']
+#             print("toggle_recs_table: event pull store: {}".format(event_entry))
+
+#             if mbid_entry == event_entry:
+#                 print("submitted MBID & event pull match: toggle on table and map")
+#                 recs_toggle = TOGGLE_ON
+#                 map_toggle = TOGGLE_ON
+#             else:
+#                 print("submitted MBID & event pull DON'T match: toggle OFF table and map")
+#         return recs_toggle#, map_toggle
 
 @app.callback(
-    Output('recs-table-container', 'style'),
-    [Input('mbid-submission-store', 'data'), Input('init-event-pull-store', 'data')]
-    )
-def toggle_recs_table(stored_mbid_entry, event_pull_entry):
-    if (stored_mbid_entry is None):
+    [Output('recs-table', 'data'), Output('recs-table-container', 'style'), Output('recs-table-heading', 'children')],
+    [Input('venue-event-storage', 'data'), Input('mbid-submission-store', 'data')],
+    [State('init-event-pull-store', 'data')])
+def display_recs_table(events_list, submit_entry, event_pull_entry):
+    if (events_list is None) or (event_pull_entry is None):
         raise PreventUpdate
     else:
+        recs_table = [{}]
+        recs_table_heading = ""
         toggle = TOGGLE_OFF
+
+        mbid_entry_dict = json.loads(submit_entry)
+        mbid_entry = mbid_entry_dict['mbid']
+
+        event_entry_dict = json.loads(event_pull_entry)
+        event_entry = event_entry_dict['mbid']
+
+        print("display_recs_table: MBID entry: {}".format(mbid_entry))
+        print("display_recs_table: event pull store: {}".format(event_entry))
+
+        if event_entry and (event_entry == mbid_entry):
+            print("here!")
+            print(len(events_list))
+            recs_table = generate_recs_table(events_list, event_entry)
+            if recs_table != [{}]:
+                recs_table_heading = "Top {} Artists by Number of Shared Venues".format(len(recs_table))
+                toggle = TOGGLE_ON
+        return recs_table, toggle, recs_table_heading
+
+
+@app.callback(
+    [Output('venue-events-table', 'children'), Output('venue-events-heading', 'children')],
+    [Input('artist-venue-map', 'clickData'), Input('mbid-submission-store', 'data')],
+    [State('venue-event-storage', 'data')])
+def update_venue_events_on_click(selected_data, stored_mbid_entry, events_list):
+    if (selected_data is None) or (events_list is None) or (stored_mbid_entry is None):
+        raise PreventUpdate
+    else:
+        events_table = []
+        heading_text = ""
+
         mbid_entry_dict = json.loads(stored_mbid_entry)
         mbid_entry = mbid_entry_dict['mbid']
 
-        print("toggle_recs_table: MBID submit store: {}".format(mbid_entry))
         if mbid_entry:
-            if event_pull_entry is None:
-                event_entry = None
+            if len(events_list) == 0:
+                raise PreventUpdate
             else:
-                event_entry_dict = json.loads(event_pull_entry)
-                event_entry = event_entry_dict['mbid']
-            print("toggle_recs_table: event pull store: {}".format(event_entry))
+                chosen = [point["customdata"] for point in selected_data["points"]]
+                if len(chosen) > 0:
+                    venue_name, venue_id = chosen[0]
 
-            if mbid_entry == event_entry:
-                print("here!")
-                toggle = TOGGLE_ON
-        return toggle
+                    events_df = pd.DataFrame(events_list)
+                    events_df['venue_mbid'] = events_df['venue_mbid'].fillna('')
+                    events_df['venue_slid'] = events_df['venue_slid'].fillna('')
+                    events_df['venue_id'] = list(zip(events_df.venue_mbid, events_df.venue_slid))
+                    events_df['event_date'] = events_df['time'].apply(lambda x:str(x))
+                    events_df['link'] = list(zip(events_df.event_slurl.combine_first(events_df.event_mburl),\
+                     events_df['event_slurl'].apply(lambda x: 'Setlist.fm page' if x else 'MusicBrainz page')))
+                    events_df['Link to Event Page'] = events_df['link'].apply(lambda x: html.A(x[1], href=x[0], target='_blank'))
+                    selected = events_df[events_df['venue_id'] == tuple(venue_id)]
+                    events_table = generate_table(selected[['event_date', 'artist_name', 'Link to Event Page']], len(selected))
+                    heading_text = 'Who else played {venue} between {start_date} and {end_date}?'.format(\
+                        venue=venue_name, start_date=START_DATE, end_date=END_DATE)
+        return events_table, heading_text
 
 
 if __name__ == '__main__':
