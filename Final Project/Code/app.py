@@ -46,7 +46,6 @@ SL_VENUE_PAGE_LIMIT = 1
 REC_COLUMNS = ["Artist", "Shared Venues"]
 
 TOGGLE_ON = {'display': 'block'}
-#MAP_TOGGLE_ON = {'display': 'block', 'height':'250px'}
 TOGGLE_OFF = {'display': 'none'}
 
 #external_stylesheets = [dbc.themes.SKETCHY]
@@ -70,13 +69,12 @@ def generate_table(dataframe, max_rows=10):
         ]
 
 def generate_events_list(mbid_entry, artist_name):
-    #event_pull_data = json.dumps([])
     query_events_list = []
     return_messages = dict(card_summary = "", progress_text = "")
     events, message = gen.get_mb_and_sl_events(mbid_entry, \
                 MB_EVENT_PULLER, SL_EVENT_PULLER, VENUE_MAPPER,\
                 START_DATE, END_DATE, sl_page_limit=SL_ARTIST_PAGE_LIMIT)
-    #print(message)
+
     event_count = len(events)
     venue_count = 0
 
@@ -88,7 +86,7 @@ def generate_events_list(mbid_entry, artist_name):
                 venue_list.append(event.venue)
                 venue_count += 1
         query_events_list = [event.to_dict() for event in events]
-        #event_pull_data  = json.dumps(serializable_events, default=str)
+
         map_plot_out, mappable_events, mappability_text = gen.generate_artist_events_map(events, mbid_entry, default_map_figure)
 
         summary_text = message + " {} events were found at {} unique venues.".format(\
@@ -111,7 +109,7 @@ def generate_events_list(mbid_entry, artist_name):
                     artist_name, START_DATE, END_DATE)
         map_plot_out = default_map_figure
         events_list_out = []
-    #event_pull_entry = json.dumps(dict(mbid=mbid_entry, name=artist_name))
+
     return map_plot_out, events_list_out, return_messages
 
 def generate_recs_table(events_list, mbid_entry):
@@ -174,12 +172,14 @@ recs_output = html.Div(id='recs-out-container',
 map_plot = html.Div(id='map-container',
         children=[dcc.Graph(id='artist-venue-map', figure=default_map_figure, 
                     config={'scrollZoom':True, 'showTips':True, 'responsive':True})],
-        style=TOGGLE_OFF)
+        style=TOGGLE_ON)
 
 map_info_table = html.Div(id='map-table-component',
-    children=[dbc.Row([html.H3(id='venue-events-heading')]),
+    children=[
+        dbc.Row([html.Br()]),
+        dbc.Row([html.H3(id='venue-events-heading', style={'margin':'10px'})]),
         dbc.Row([dbc.Table(id='venue-events-table', striped=True, size='sm')], 
-                style={'maxHeight': '250px','overflowY':'scroll', 'margin': '10px'})])
+                style={'maxHeight': '330px','overflowY':'scroll', 'margin': '10px'})])
 
 # map_component = html.Div(id='map-container',
 #     children=[
@@ -397,41 +397,6 @@ def update_recs_and_map(toggle, stored_mbid_entry, event_pull_entry, current_map
                 spinner_out = return_messages['progress_text']
                 event_pull_entry = json.dumps(dict(mbid=mbid_entry, name=artist_name))
         return event_pull_entry, spinner_out, map_plot_out, events_list_out
-
-# # Toggle visibility of recommendations table - make sure doesn't show when new query has been submitted 
-# # but new recommendations not yet generated
-# @app.callback(
-#     Output('recs-table-container', 'style'),
-#     #[Output('recs-table-container', 'style'), Output('map-container', 'style')],
-#     [Input('mbid-submission-store', 'data'), Input('init-event-pull-store', 'data')],
-#     [State('recs-table-container', 'style')]
-#     )
-# def toggle_recs_table(stored_mbid_entry, event_pull_entry, current_style):
-#     print("Current style: {}".format(current_style))
-#     if (stored_mbid_entry is None):
-#         raise PreventUpdate
-#     else:
-#         recs_toggle = TOGGLE_OFF
-#         map_toggle = TOGGLE_OFF
-#         mbid_entry_dict = json.loads(stored_mbid_entry)
-#         mbid_entry = mbid_entry_dict['mbid']
-
-#         print("toggle_recs_table: MBID submit store: {}".format(mbid_entry))
-#         if mbid_entry:
-#             if event_pull_entry is None:
-#                 event_entry = None
-#             else:
-#                 event_entry_dict = json.loads(event_pull_entry)
-#                 event_entry = event_entry_dict['mbid']
-#             print("toggle_recs_table: event pull store: {}".format(event_entry))
-
-#             if mbid_entry == event_entry:
-#                 print("submitted MBID & event pull match: toggle on table and map")
-#                 recs_toggle = TOGGLE_ON
-#                 map_toggle = TOGGLE_ON
-#             else:
-#                 print("submitted MBID & event pull DON'T match: toggle OFF table and map")
-#         return recs_toggle#, map_toggle
 
 @app.callback(
     [Output('recs-table', 'data'), Output('recs-table-container', 'style'), Output('recs-table-heading', 'children')],
