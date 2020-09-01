@@ -46,7 +46,7 @@ REC_COLUMNS = ["Artist", "Shared Venues"]
 TOGGLE_ON = {'display': 'block'}
 TOGGLE_OFF = {'display': 'none'}
 
-#external_stylesheets = [dbc.themes.SKETCHY]
+external_stylesheets = [dbc.themes.SKETCHY]
 
 # Empty map figure (note: no country borders)
 default_map_figure = go.Figure(data=go.Scattergeo(),
@@ -101,7 +101,6 @@ def generate_events_list(mbid_entry, artist_name):
                 START_DATE, END_DATE, SL_VENUE_PAGE_LIMIT)
         if len(events_list_out) > 0:
             return_messages['progress_text'] = "Got recommendations for {}".format(artist_name)
-            #tooltip_toggle = TOGGLE_ON
     else: #no events found
         return_messages['progress_text'] = "No events found for {} between {} and {}, so no recommendations.".format(\
                     artist_name, START_DATE, END_DATE)
@@ -123,7 +122,7 @@ def generate_recs_table(events_list, mbid_entry):
 #########
 server = flask.Flask(__name__)
 #app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
-app = dash.Dash(__name__, server=server)
+app = dash.Dash(__name__, server=server, external_stylesheets=external_stylesheets)
 
 #server = app.server
 
@@ -152,7 +151,6 @@ user_inputs = [
 recs_output = html.Div(id='recs-out-container',
     children=[
         dbc.Row(dbc.Spinner(html.Div(id='get-recs-spinner1'), color="primary")),
-        #dbc.Row(dbc.Spinner(html.Div(id='get-recs-spinner2'), color="secondary")),
         dbc.Row(id='recs-table-container', 
             children = [dbc.Col(
                 children=[
@@ -162,8 +160,6 @@ recs_output = html.Div(id='recs-out-container',
                         align='center'))
                 ])], 
             style=TOGGLE_OFF)
-        #dbc.Tooltip("Click on a cell for more information!",
-        #    target='recs-table-container')])
     ],
     style=TOGGLE_OFF)
 
@@ -178,16 +174,14 @@ map_info_table = html.Div(id='map-table-component',
         dbc.Row([dbc.Table(id='venue-events-table', striped=True, size='sm')], 
                 style={'maxHeight': '330px','overflowY':'scroll', 'margin': '10px'})])
 
-card_body_style = {'maxHeight':'100px', 'overflowY':'scroll'}
-
 summary_card = dbc.Card([
         dbc.CardHeader("Summary"), 
-        dbc.CardBody(id='query-events-text', style=card_body_style)
+        dbc.CardBody(id='query-events-text', style={'maxHeight':'100px', 'overflowY':'scroll'})
     ])
 
 more_info_card = dbc.Card([
                     dbc.CardHeader("More info about recommendations"), 
-                    dbc.CardBody(id='rec-select-text', style=card_body_style)],
+                    dbc.CardBody(id='rec-select-text', style={'maxHeight':'300px', 'overflowY':'scroll'})],
                 id='more-info-card',
                 style=TOGGLE_OFF)
 
@@ -211,7 +205,7 @@ app.layout = dbc.Container([
         dbc.Col(more_info_card, width=4),
         dbc.Col(map_info_table, width = 8)
     ])
-])
+], fluid=True)
 
 ###############
 # Callbacks!
@@ -294,7 +288,6 @@ def update_mbid_entry_store(artist_dropdown_selection, artist_dropdown_options):
         mbid_store_dict['mbid'] = artist_dropdown_selection
         mbid_store_dict['name'] = selected[0]
     mbid_store_data = json.dumps(mbid_store_dict)
-    print('update_mbid_entry_store: MBID entry store: {}'.format(mbid_store_data))
     return mbid_store_data
 
 # Called whenever MBID entry store value changes
@@ -336,7 +329,6 @@ def update_mbid_submit_store(submit_clicks, stored_entry):
         mbid_submit_data = stored_entry
     else:
         mbid_submit_data = json.dumps(dict(mbid=None, name=None))
-    print('update_mbid_submit_store: MBID submit store: {}'.format(mbid_submit_data))
     return mbid_submit_data, click_data_out
 
 # Toggling visibility of section with spinners and recommendation table - hide when Submit button 
@@ -351,7 +343,6 @@ def toggle_rec_area_visibility(stored_mbid_entry):
         recs_toggle = TOGGLE_OFF
         mbid_entry_dict = json.loads(stored_mbid_entry)
         mbid_entry = mbid_entry_dict['mbid']
-        print("toggle_rec_area_visibility: MBID entry: {}".format(mbid_entry))
         if mbid_entry:
             recs_toggle = TOGGLE_ON
         return recs_toggle
@@ -374,8 +365,6 @@ def update_recs_and_map(toggle, stored_mbid_entry, event_pull_entry, current_map
     mbid_entry_dict = json.loads(stored_mbid_entry)
     mbid_entry = mbid_entry_dict['mbid']
     artist_name = mbid_entry_dict['name']
-    print("update_recs_and_map: MBID entry: {}".format(mbid_entry))
-    print("update_recs_and_map: init event pull store: {}".format(event_pull_entry))
     if event_pull_entry is None:
         event_entry = None
     else:
@@ -415,12 +404,7 @@ def display_recs_table(events_list, submit_entry, event_pull_entry):
         event_entry_dict = json.loads(event_pull_entry)
         event_entry = event_entry_dict['mbid']
 
-        print("display_recs_table: MBID entry: {}".format(mbid_entry))
-        print("display_recs_table: event pull store: {}".format(event_entry))
-
         if event_entry and (event_entry == mbid_entry):
-            print("here!")
-            print(len(events_list))
             recs_table = generate_recs_table(events_list, event_entry)
             if recs_table != [{}]:
                 recs_table_heading = "Top {} Artists by Number of Shared Venues".format(len(recs_table))
@@ -491,9 +475,6 @@ def display_recommended_artist_info(active_cell, stored_mbid_entry, events_list,
         mbid_entry = mbid_entry_dict['mbid']
         query_artist = mbid_entry_dict['name']
 
-        print("display_recommended_artist_info: MBID entry: {}".format(mbid_entry))
-        print("display_recommended_artist_info: active cell: {}".format(active_cell))
-
         if mbid_entry and ('row_id' in active_cell):
             if active_cell['row_id']:
                 active_row_id = active_cell['row_id']
@@ -531,8 +512,6 @@ def display_recommended_artist_info(active_cell, stored_mbid_entry, events_list,
                         cell_artist, query_artist, shared_venues)
                     message = message + " {}'s events: ".format(cell_artist)
                     card_text_out = html.P([message] + event_text)
-        print("card_display_out: {}".format(card_display_out))
-        print("card_text_out: {}".format(card_text_out))
         return card_display_out, card_text_out
 
 
