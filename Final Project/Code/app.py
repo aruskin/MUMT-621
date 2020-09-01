@@ -185,6 +185,12 @@ summary_card = dbc.Card([
         dbc.CardBody(id='query-events-text', style=card_body_style)
     ])
 
+more_info_card = dbc.Card([
+                    dbc.CardHeader("More info about recommendations"), 
+                    dbc.CardBody(id='rec-select-text', style=card_body_style)],
+                id='more-info-card',
+                style=TOGGLE_OFF)
+
 header = [
     html.H1('Get Artist Recommendations by Tour History',
         style={'textAlign': 'center'})
@@ -202,18 +208,10 @@ app.layout = dbc.Container([
         dbc.Col(map_plot, width=8)
     ]),
     dbc.Row([
-        dbc.Col(width=4),
+        dbc.Col(more_info_card, width=4),
         dbc.Col(map_info_table, width = 8)
     ])
 ])
-        
-        # 1st column: user input options
-        # dbc.Col([
-        #     dbc.Row(dbc.Col(user_inputs)),
-        #     dbc.Row(dbc.Col(recs_output))
-        # ], width=4),
-        # dbc.Col([dbc.Row(dbc.Col(map_component))
-        #     ], width=8)
 
 ###############
 # Callbacks!
@@ -435,7 +433,7 @@ def display_recs_table(events_list, submit_entry, event_pull_entry):
     [Input('artist-venue-map', 'clickData'), Input('mbid-submission-store', 'data')],
     [State('venue-event-storage', 'data')])
 def update_venue_events_on_click(selected_data, stored_mbid_entry, events_list):
-    if (selected_data is None) or (events_list is None) or (stored_mbid_entry is None):
+    if (selected_data is None) or (stored_mbid_entry is None):
         raise PreventUpdate
     else:
         events_table = []
@@ -465,6 +463,77 @@ def update_venue_events_on_click(selected_data, stored_mbid_entry, events_list):
                     heading_text = 'Who else played {venue} between {start_date} and {end_date}?'.format(\
                         venue=venue_name, start_date=START_DATE, end_date=END_DATE)
         return events_table, heading_text
+
+@app.callback(
+    [Output('recs-table', 'active_cell'), Output('recs-table', 'selected_cells')],
+    [Input('recs-table', 'data')]
+)
+def clear_selected_table_cells(recs_table):
+    if recs_table is None:
+        raise PreventUpdate
+    else:
+        deactivated_cell = dict(row=-1, column=-1, column_id=None, row_id=None)
+        selected_cells = []
+        return deactivated_cell, selected_cells
+
+@app.callback(
+    [Output('more-info-card', 'style'), Output('rec-select-text', 'children')],
+    [Input('recs-table', 'active_cell')],
+    [State('mbid-submission-store', 'data'), State('venue-event-storage', 'data'), State('recs-table', 'data')])
+def display_recommended_artist_info(active_cell, stored_mbid_entry, events_list, recs_table_data):
+    if (active_cell is None) or (stored_mbid_entry is None):
+        raise PreventUpdate
+    else:
+        card_display_out = TOGGLE_OFF
+        card_text_out = ""
+
+        mbid_entry_dict = json.loads(stored_mbid_entry)
+        mbid_entry = mbid_entry_dict['mbid']
+        query_artist = mbid_entry_dict['name']
+
+        print("display_recommended_artist_info: MBID entry: {}".format(mbid_entry))
+        print("display_recommended_artist_info: active cell: {}".format(active_cell))
+
+        if mbid_entry and ('row_id' in active_cell):
+            if active_cell['row_id']:
+                active_row_id = active_cell['row_id']
+                active_col_id = active_cell['column_id']
+                selected_record = [x for x in recs_table_data if x['id']==active_row_id][0]
+                cell_artist = selected_record['Artist']
+                artist_mbid = selected_record['id']
+                shared_venues = selected_record['Shared Venues']
+
+
+                card_display_out = TOGGLE_ON
+
+                if active_col_id == 'Artist':
+                    artist_info = gen.get_more_artist_info(artist_mbid)
+                    message = []
+                    if artist_info['area']:
+                        message.append(html.P('Area: {}'.format(artist_info['area'])))
+                    if artist_info['life_span']:
+                        message.append(html.P('Lifespan: {}'.format(artist_info['life_span'])))
+                    if len(artist_info['top_tags']) > 0:
+                        message.append(html.P('Top tags on MusicBrainz: {}'.format(', '.join(artist_info['top_tags']))))
+                    message.append(html.P(['Find out more at ', 
+                        html.A("{}'s MusicBrainz artist page".format(cell_artist),
+                            href='https://musicbrainz.org/artist/' + artist_mbid,
+                            target='_blank')]))
+                    card_text_out = html.Div(message)
+                    return card_display_out, card_text_out
+                else: #if active_col_id == 'Shared Venues' -- only other option
+                    relevant_events = [event for event in events_list if \
+                        event['artist_mbid'] == artist_mbid]
+                    event_text = [html.A("{venue} ({date}), ".format(date=str(x['time']), venue=gen.not_none(x['venue_slname'], x['venue_mbname'])),
+                        href=gen.not_none(x['event_slurl'], x['event_mburl']), target="_blank") \
+                        for x in relevant_events]
+                    message = '{} and {} have recently played at {} of the same venues.'.format(\
+                        cell_artist, query_artist, shared_venues)
+                    message = message + " {}'s events: ".format(cell_artist)
+                    card_text_out = html.P([message] + event_text)
+        print("card_display_out: {}".format(card_display_out))
+        print("card_text_out: {}".format(card_text_out))
+        return card_display_out, card_text_out
 
 
 if __name__ == '__main__':
