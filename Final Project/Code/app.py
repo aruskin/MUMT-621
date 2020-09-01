@@ -1,5 +1,3 @@
-# TO-DO toggle rec area visibility not actually updating styles???
-# Why try to toggle rec area visibility--instead of showing/hiding table container, what about only creating table when valid?
 import flask
 import dash
 import dash_core_components as dcc
@@ -176,17 +174,16 @@ map_plot = html.Div(id='map-container',
 
 map_info_table = html.Div(id='map-table-component',
     children=[
-        dbc.Row([html.Br()]),
         dbc.Row([html.H3(id='venue-events-heading', style={'margin':'10px'})]),
         dbc.Row([dbc.Table(id='venue-events-table', striped=True, size='sm')], 
                 style={'maxHeight': '330px','overflowY':'scroll', 'margin': '10px'})])
 
-# map_component = html.Div(id='map-container',
-#     children=[
-#         dbc.Row(dbc.Col(map_plot)),
-#         dbc.Row(dbc.Col(map_info_table))
-        
-#     ], style=TOGGLE_OFF)
+card_body_style = {'maxHeight':'100px', 'overflowY':'scroll'}
+
+summary_card = dbc.Card([
+        dbc.CardHeader("Summary"), 
+        dbc.CardBody(id='query-events-text', style=card_body_style)
+    ])
 
 header = [
     html.H1('Get Artist Recommendations by Tour History',
@@ -198,13 +195,17 @@ app.layout = dbc.Container([
     html.Div(secret_divs),
     dbc.Row([
         dbc.Col(user_inputs, width = 4),
-        dbc.Col(map_plot, width = 8)
+        dbc.Col(summary_card, width=8)
     ]),
     dbc.Row([
         dbc.Col(recs_output, width = 4),
+        dbc.Col(map_plot, width=8)
+    ]),
+    dbc.Row([
+        dbc.Col(width=4),
         dbc.Col(map_info_table, width = 8)
-        ])
     ])
+])
         
         # 1st column: user input options
         # dbc.Col([
@@ -360,43 +361,43 @@ def toggle_rec_area_visibility(stored_mbid_entry):
 
 @app.callback(
     [Output('init-event-pull-store', 'data'), 
-    Output('get-recs-spinner1', 'children'), Output('artist-venue-map', 'figure'), Output('venue-event-storage', 'data')],
+    Output('get-recs-spinner1', 'children'), Output('artist-venue-map', 'figure'), Output('venue-event-storage', 'data'),
+    Output('query-events-text', 'children')],
     [Input('recs-out-container', 'style')],
     [State('mbid-submission-store', 'data'), State('init-event-pull-store', 'data'), State('artist-venue-map', 'figure'),
-    State('venue-event-storage', 'data')]
+    State('venue-event-storage', 'data'), State('query-events-text', 'children')]
     )
-def update_recs_and_map(toggle, stored_mbid_entry, event_pull_entry, current_map, current_event_data):
-   # if (toggle == TOGGLE_OFF):
-   #     raise PreventUpdate
-   # else:
-        spinner_out = ""
-        map_plot_out = default_map_figure
-        events_list_out = []
+def update_recs_and_map(toggle, stored_mbid_entry, event_pull_entry, current_map, current_event_data, current_text):
+    spinner_out = ""
+    map_plot_out = default_map_figure
+    events_list_out = []
+    summary_text = ""
 
-        mbid_entry_dict = json.loads(stored_mbid_entry)
-        mbid_entry = mbid_entry_dict['mbid']
-        artist_name = mbid_entry_dict['name']
-        print("update_recs_and_map: MBID entry: {}".format(mbid_entry))
-        print("update_recs_and_map: init event pull store: {}".format(event_pull_entry))
-        if event_pull_entry is None:
-            event_entry = None
+    mbid_entry_dict = json.loads(stored_mbid_entry)
+    mbid_entry = mbid_entry_dict['mbid']
+    artist_name = mbid_entry_dict['name']
+    print("update_recs_and_map: MBID entry: {}".format(mbid_entry))
+    print("update_recs_and_map: init event pull store: {}".format(event_pull_entry))
+    if event_pull_entry is None:
+        event_entry = None
+    else:
+        event_entry_dict = json.loads(event_pull_entry)
+        event_entry = event_entry_dict['mbid']
+
+    if mbid_entry:
+        if (mbid_entry == event_entry) and (len(current_event_data) > 0):
+            spinner_out = "Already pulled events for {}".format(artist_name)
+            map_plot_out = current_map
+            events_list_out = current_event_data
+            summary_text = current_text
         else:
-            event_entry_dict = json.loads(event_pull_entry)
-            event_entry = event_entry_dict['mbid']
+            map_plot_out, events_list_out, return_messages = generate_events_list(mbid_entry, artist_name)
 
-        if mbid_entry:
-            if (mbid_entry == event_entry) and (len(current_event_data) > 0):
-                spinner_out = "Already pulled events for {}".format(artist_name)
-                map_plot_out = current_map
-                events_list_out = current_event_data
-            else:
-                map_plot_out, events_list_out, return_messages = generate_events_list(mbid_entry, artist_name)
+            summary_text = return_messages['card_summary']
 
-                print(return_messages['card_summary'])
-
-                spinner_out = return_messages['progress_text']
-                event_pull_entry = json.dumps(dict(mbid=mbid_entry, name=artist_name))
-        return event_pull_entry, spinner_out, map_plot_out, events_list_out
+            spinner_out = return_messages['progress_text']
+            event_pull_entry = json.dumps(dict(mbid=mbid_entry, name=artist_name))
+    return event_pull_entry, spinner_out, map_plot_out, events_list_out, summary_text
 
 @app.callback(
     [Output('recs-table', 'data'), Output('recs-table-container', 'style'), Output('recs-table-heading', 'children')],
