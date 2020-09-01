@@ -2,6 +2,10 @@
 
 ## Getting Started
 
+### Using the demo
+
+Try out the Heroku deployment of the app [here](https://mumt-app.herokuapp.com/)
+
 ### Running the app locally
 
 Set up a folder and a [Python virtual environment](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) within that folder
