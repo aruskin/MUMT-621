@@ -92,7 +92,7 @@ def generate_events_list(mbid_entry, artist_name):
         mappability_message = "{} events mapped.".format(mappable_events)
         if mappable_events < event_count:
             mappability_message = mappability_message +" No coordinates found for {}.".format(mappability_text)
-        card_text_out = html.P([summary_text, html.Hr(), mappability_message])
+        card_text_out = html.Div([html.P(summary_text), html.Hr(), html.P(mappability_message)])
         return_messages['card_summary'] = card_text_out
 
         # 2nd part of pull - venue events
@@ -417,7 +417,7 @@ def display_recs_table(events_list, submit_entry, event_pull_entry):
     [Input('artist-venue-map', 'clickData'), Input('mbid-submission-store', 'data')],
     [State('venue-event-storage', 'data')])
 def update_venue_events_on_click(selected_data, stored_mbid_entry, events_list):
-    if (selected_data is None) or (stored_mbid_entry is None):
+    if (selected_data is None) or (stored_mbid_entry is None) or (events_list is None):
         raise PreventUpdate
     else:
         events_table = []
